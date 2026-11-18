@@ -1,17 +1,9 @@
 import {
-  ArrowRight,
-  Bell,
   ChevronDown,
-  Clock,
-  Flame,
-  Home,
   MapPin,
-  Menu,
-  ReceiptText,
+  RefreshCw,
   Search,
-  SlidersHorizontal,
   Star,
-  User,
   X,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -22,11 +14,24 @@ import {
   formatNaira,
   getDistanceToRestaurant,
 } from '../data/deliveryData';
-import { AuthUser, FoodCategoryKey, Restaurant } from '../types/delivery';
-import { AccountPortalTab } from './AccountPortalModal';
-import { CategoryIllustration } from './CategoryIcons';
+import {
+  AuthUser,
+  FoodCategoryKey,
+  MenuItem,
+  Restaurant,
+  ScreenId,
+} from '../types/delivery';
+import { BottomNavItem, MobileBottomNav } from './MobileBottomNav';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
 import { PlateImage } from './PlateImage';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  FoodCardSkeleton,
+  Input,
+} from './ui';
 
 interface HomeDiscoveryScreenProps {
   restaurants: Restaurant[];
@@ -35,29 +40,81 @@ interface HomeDiscoveryScreenProps {
   activeCategory: FoodCategoryKey;
   onChangeCategory: (category: FoodCategoryKey) => void;
   onChangeLocation: (loc: string) => void;
-  selectedRestaurantId: string;
   onSelectRestaurant: (restaurant: Restaurant) => void;
-  onOpenOrders: () => void;
-  onOpenAccountPortal: (tab: AccountPortalTab) => void;
-  onOpenSidebar: () => void;
+  onOrderPlate: (restaurant: Restaurant, item: MenuItem) => void;
+  onNavigateScreen: (screen: ScreenId) => void;
   activeOrderCount: number;
   overlayInset?: boolean;
   layoutMode?: 'frame' | 'responsive';
 }
 
-const CATEGORIES: {
-  key: Exclude<FoodCategoryKey, 'all'>;
+const FEED_CHIPS: {
+  key: FoodCategoryKey;
   label: string;
 }[] = [
-  { key: 'jollof', label: 'Jollof & Rice' },
-  { key: 'swallows', label: 'Swallows & Soup' },
-  { key: 'suya', label: 'Suya & Grills' },
-  { key: 'small_chops', label: 'Small Chops' },
-  { key: 'pepper_soup', label: 'Pepper Soup' },
-  { key: 'drinks', label: 'Palm Wine/Drinks' },
+  { key: 'all', label: 'All Plates' },
+  { key: 'jollof', label: 'Rice' },
+  { key: 'swallows', label: 'Soups' },
+  { key: 'suya', label: 'Grills' },
+  { key: 'small_chops', label: 'Snacks' },
+  { key: 'drinks', label: 'Drinks' },
 ];
 
-type FilterOption = 'all' | 'nearby' | 'free' | 'fast' | 'top';
+function itemMatchesFeedCategory(
+  item: MenuItem,
+  restaurant: Restaurant,
+  category: FoodCategoryKey
+): boolean {
+  if (category === 'all') return true;
+  const lower = `${item.name} ${item.description}`.toLowerCase();
+  switch (category) {
+    case 'jollof':
+      return (
+        lower.includes('jollof') ||
+        lower.includes('rice') ||
+        lower.includes('ofada') ||
+        restaurant.categoryKey === 'jollof'
+      );
+    case 'swallows':
+      return (
+        item.category === 'Swallows' ||
+        lower.includes('soup') ||
+        lower.includes('egusi') ||
+        lower.includes('efo') ||
+        lower.includes('amala') ||
+        lower.includes('ponmo') ||
+        lower.includes('pepper soup')
+      );
+    case 'suya':
+      return (
+        lower.includes('suya') ||
+        lower.includes('grill') ||
+        lower.includes('tilapia') ||
+        lower.includes('chicken') ||
+        restaurant.categoryKey === 'suya'
+      );
+    case 'small_chops':
+      return (
+        lower.includes('akara') ||
+        lower.includes('chops') ||
+        lower.includes('puff') ||
+        lower.includes('breakfast') ||
+        lower.includes('dodo') ||
+        lower.includes('yam') ||
+        lower.includes('tiger')
+      );
+    case 'drinks':
+      return (
+        lower.includes('zobo') ||
+        lower.includes('pineapple') ||
+        lower.includes('cooler') ||
+        lower.includes('palm') ||
+        lower.includes('drink')
+      );
+    case 'pepper_soup':
+      return lower.includes('pepper soup') || restaurant.categoryKey === 'pepper_soup';
+  }
+}
 
 export function HomeDiscoveryScreen({
   restaurants,
@@ -66,526 +123,364 @@ export function HomeDiscoveryScreen({
   activeCategory,
   onChangeCategory,
   onChangeLocation,
-  selectedRestaurantId,
   onSelectRestaurant,
-  onOpenOrders,
-  onOpenAccountPortal,
-  onOpenSidebar,
+  onOrderPlate,
+  onNavigateScreen,
   activeOrderCount,
   overlayInset = false,
   layoutMode = 'frame',
 }: HomeDiscoveryScreenProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
-
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterOption, setFilterOption] = useState<FilterOption>('all');
   const [isLocationOpen, setIsLocationOpen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [unreadBell, setUnreadBell] = useState(true);
-  const [activeNav, setActiveNav] = useState<'home' | 'search'>('home');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeBottomNav, setActiveBottomNav] = useState<BottomNavItem>('home');
 
   const isResponsive = layoutMode === 'responsive';
-  const promoRestaurant = restaurants[0];
-  const firstName = user.name.split(' ')[0] || 'Tunde';
+  const firstName = user.name.split(' ')[0] || 'Friend';
 
-  const filteredRestaurants = useMemo(() => {
+  const feedPlates = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return restaurants
-      .map((r) => ({
-        restaurant: r,
-        distanceKm: getDistanceToRestaurant(location, r),
-      }))
-      .filter(({ restaurant: r, distanceKm }) => {
-        const matchCat =
-          activeCategory === 'all' ||
-          r.categoryKey === activeCategory ||
-          (activeCategory === 'swallows' &&
-            r.menu.some((m) => m.category === 'Swallows')) ||
-          (activeCategory === 'suya' &&
-            r.menu.some((m) => m.name.toLowerCase().includes('suya'))) ||
-          (activeCategory === 'small_chops' &&
-            r.menu.some(
-              (m) =>
-                m.name.toLowerCase().includes('chops') ||
-                m.name.toLowerCase().includes('puff')
-            )) ||
-          (activeCategory === 'pepper_soup' &&
-            r.menu.some((m) => m.name.toLowerCase().includes('pepper soup'))) ||
-          (activeCategory === 'drinks' &&
-            r.menu.some(
-              (m) =>
-                m.name.toLowerCase().includes('zobo') ||
-                m.name.toLowerCase().includes('palm')
-            ));
+    const list: {
+      item: MenuItem;
+      restaurant: Restaurant;
+      distanceKm: number;
+    }[] = [];
 
+    for (const restaurant of restaurants) {
+      const distanceKm = getDistanceToRestaurant(location, restaurant);
+      for (const item of restaurant.menu) {
+        const matchCat = itemMatchesFeedCategory(
+          item,
+          restaurant,
+          activeCategory
+        );
         const matchQuery =
           !q ||
-          r.name.toLowerCase().includes(q) ||
-          r.area.toLowerCase().includes(q) ||
-          r.address.toLowerCase().includes(q) ||
-          r.cuisineTags.some((tag) => tag.toLowerCase().includes(q)) ||
-          r.menu.some((m) => m.name.toLowerCase().includes(q));
+          item.name.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          restaurant.name.toLowerCase().includes(q) ||
+          restaurant.area.toLowerCase().includes(q);
+        if (matchCat && matchQuery) {
+          list.push({ item, restaurant, distanceKm });
+        }
+      }
+    }
 
-        const matchFilter =
-          filterOption === 'all' ||
-          (filterOption === 'nearby' && distanceKm <= 5) ||
-          (filterOption === 'free' && r.deliveryFee === 0) ||
-          (filterOption === 'fast' && r.deliveryMinutes.startsWith('1')) ||
-          (filterOption === 'top' && r.rating >= 4.8);
+    return list.sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [restaurants, location, activeCategory, searchQuery]);
 
-        return matchCat && matchQuery && matchFilter;
-      })
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [restaurants, location, activeCategory, searchQuery, filterOption]);
+  function handleRefreshFeed() {
+    setIsRefreshing(true);
+    window.setTimeout(() => {
+      setIsRefreshing(false);
+    }, 450);
+  }
+
+  function handleBottomNavSelect(nav: BottomNavItem) {
+    setActiveBottomNav(nav);
+    if (nav === 'home') {
+      onNavigateScreen('home');
+    } else if (nav === 'search') {
+      searchInputRef.current?.focus();
+    } else if (nav === 'post') {
+      onNavigateScreen('post');
+    } else if (nav === 'orders') {
+      onNavigateScreen('orders');
+    } else if (nav === 'profile') {
+      onNavigateScreen('profile');
+    }
+  }
 
   const modalWrapperClass = isResponsive
-    ? 'fixed inset-0 z-50 flex items-end justify-center bg-[#1E1916]/45 backdrop-blur-[1px] md:items-center md:p-4'
-    : 'absolute inset-0 z-30 flex items-end bg-[#1E1916]/40 backdrop-blur-[1px]';
+    ? 'fixed inset-0 z-50 flex items-end justify-center bg-text-primary/45 backdrop-blur-[2px] md:items-center md:p-4'
+    : 'absolute inset-0 z-40 flex items-end bg-text-primary/45 backdrop-blur-[2px]';
 
   const modalCardClass = isResponsive
-    ? 'max-h-[85dvh] w-full overflow-y-auto rounded-t-[24px] bg-white p-5 pb-8 shadow-2xl md:max-w-lg md:rounded-[24px] md:pb-6'
-    : 'max-h-[82%] w-full overflow-y-auto rounded-t-[24px] bg-white p-5 pb-8';
+    ? 'max-h-[85dvh] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8 shadow-2xl md:max-w-lg md:rounded-[16px] md:pb-6'
+    : 'max-h-[82%] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8';
 
   return (
-    <div className="relative flex h-full flex-col bg-[#FAF6F1]">
+    <div className="relative flex h-full flex-col bg-bg">
       <div
         className={`no-scrollbar flex-1 overflow-y-auto ${
           isResponsive
-            ? 'px-4 pt-4 pb-24 md:px-6 md:pt-6 md:pb-10 lg:px-8'
-            : `px-5 pb-24 ${overlayInset ? 'pt-12' : 'pt-2'}`
+            ? 'px-4 pt-4 pb-24 md:px-6 md:pt-6 md:pb-12 lg:px-8'
+            : `px-4 pb-24 ${overlayInset ? 'pt-12' : 'pt-3'}`
         }`}
       >
         <div className={isResponsive ? 'mx-auto max-w-6xl' : ''}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              {!isResponsive && (
-                <button
-                  type="button"
-                  aria-label="Open menu sidebar"
-                  onClick={onOpenSidebar}
-                  className="soft-card-shadow flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1E1916] transition-transform active:scale-95"
-                >
-                  <Menu className="h-[18px] w-[18px]" />
-                </button>
-              )}
-
-              <div className="min-w-0">
-                <p
-                  className={`truncate font-medium text-[#5C5049] ${
-                    isResponsive ? 'text-xs md:text-sm' : 'text-[11px]'
-                  }`}
-                >
-                  How far, {firstName}? Ready to chop?
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsLocationOpen((prev) => !prev)}
-                  className={`mt-0.5 flex items-center gap-1.5 text-left font-bold text-[#1E1916] ${
-                    isResponsive ? 'text-sm md:text-base' : 'text-xs'
-                  }`}
-                >
-                  <MapPin className="h-4 w-4 shrink-0 text-[#D9232E]" />
-                  <span className="truncate">{location}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-[#D9232E]" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              {isResponsive && (
-                <button
-                  type="button"
-                  onClick={() => onOpenAccountPortal(user.role)}
-                  className="hidden min-h-[42px] items-center rounded-full bg-[#F4E8D6] px-4 text-xs font-bold text-[#1E1916] transition-colors hover:bg-[#E8D5B7] md:inline-flex"
-                >
-                  {user.role === 'seller'
-                    ? 'Seller: Post Plate'
-                    : 'Buyer / Seller Login'}
-                </button>
-              )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-text-secondary">
+                How far, {firstName}? Ready to eat?
+              </p>
               <button
                 type="button"
-                aria-label="Open notifications"
-                onClick={() => {
-                  setIsNotificationsOpen(true);
-                  setUnreadBell(false);
-                }}
-                className="soft-card-shadow relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1E1916] transition-transform active:scale-95"
+                onClick={() => setIsLocationOpen(true)}
+                className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-left text-sm font-bold text-text-primary transition-colors hover:text-primary md:text-base"
               >
-                <Bell className="h-[18px] w-[18px]" />
-                {unreadBell && (
-                  <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-[#D9232E]" />
-                )}
+                <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate">{location}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
               </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRefreshFeed}
+                aria-label="Refresh home food feed"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-soft transition-transform duration-150 hover:-translate-y-0.5 active:scale-95"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-primary' : ''}`}
+                />
+              </button>
+              {isResponsive && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onNavigateScreen('post')}
+                  className="hidden md:inline-flex"
+                >
+                  Post Food
+                </Button>
+              )}
             </div>
           </div>
 
-          <div
-            className={`mt-4 flex items-center gap-2.5 ${
-              isResponsive ? 'md:mt-5' : ''
-            }`}
-          >
-            <div className="soft-card-shadow relative flex flex-1 items-center rounded-2xl border border-[#E6DDD3] bg-white">
-              <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#5C5049]" />
-              <input
-                ref={searchInputRef}
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Jollof, Amala, Suya, State or LGA..."
-                aria-label="Search Jollof, Amala, Suya, State or LGA"
-                className="min-h-[46px] w-full rounded-2xl bg-transparent pr-3 pl-10 text-sm text-[#1E1916] placeholder:text-[#5C5049]/75 focus:outline-none"
-              />
-            </div>
-
-            <button
-              type="button"
-              aria-label="Filter kitchens"
-              onClick={() => setIsFilterOpen(true)}
-              className={`soft-card-shadow flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-2xl border px-3.5 transition-colors ${
-                filterOption !== 'all'
-                  ? 'border-[#D9232E] bg-[#D9232E] text-white'
-                  : 'border-[#E6DDD3] bg-white text-[#1E1916]'
-              }`}
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {isResponsive && (
-                <span className="hidden text-xs font-semibold md:inline">
-                  Filter
-                </span>
-              )}
-            </button>
+          <div className="mt-4">
+            <Input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onFocus={() => setActiveBottomNav('search')}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search Jollof, Egusi, Suya, Akara or kitchen..."
+              aria-label="Search food plates or sellers"
+              icon={<Search className="h-4 w-4 text-primary" />}
+            />
           </div>
 
           <div
             data-no-swipe="true"
-            className={`no-scrollbar -mx-4 mt-5 flex gap-2.5 overflow-x-auto px-4 pb-1 ${
-              isResponsive ? 'md:mx-0 md:gap-4 md:px-0' : ''
-            }`}
+            role="tablist"
+            aria-label="Food categories"
+            className="no-scrollbar -mx-4 mt-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0"
           >
-            {CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat.key;
+            {FEED_CHIPS.map((chip) => {
+              const isSelected = activeCategory === chip.key;
               return (
                 <button
-                  key={cat.key}
+                  key={chip.key}
                   type="button"
-                  onClick={() =>
-                    onChangeCategory(activeCategory === cat.key ? 'all' : cat.key)
-                  }
-                  className={`flex shrink-0 flex-col items-center gap-1.5 ${
-                    isResponsive
-                      ? 'md:flex-row md:rounded-full md:px-4 md:py-2 md:transition-colors ' +
-                        (isActive
-                          ? 'md:bg-[#D9232E] md:text-white'
-                          : 'md:bg-[#F4E8D6] md:hover:bg-[#E8D5B7]')
-                      : ''
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => onChangeCategory(chip.key)}
+                  className={`min-h-[40px] shrink-0 cursor-pointer rounded-full px-4 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-primary-soft text-primary-dark ring-1 ring-primary'
+                      : 'border border-border-soft bg-surface text-text-secondary hover:bg-primary-soft/50 hover:text-text-primary'
                   }`}
                 >
-                  <div
-                    className={`flex h-15 w-15 items-center justify-center rounded-[18px] transition-all ${
-                      isResponsive ? 'md:h-8 md:w-8 md:bg-transparent md:ring-0 ' : ''
-                    }${
-                      isActive
-                        ? 'bg-[#E8D5B7] ring-2 ring-[#D9232E]'
-                        : 'bg-[#F4E8D6] hover:bg-[#E8D5B7]/85'
-                    }`}
-                  >
-                    <CategoryIllustration category={cat.key} />
-                  </div>
-                  <span
-                    className={`text-[11px] font-semibold whitespace-nowrap ${
-                      isResponsive ? 'md:text-xs ' : ''
-                    }${
-                      isActive
-                        ? isResponsive
-                          ? 'text-[#D9232E] md:text-white'
-                          : 'text-[#D9232E]'
-                        : 'text-[#1E1916]'
-                    }`}
-                  >
-                    {cat.label}
-                  </span>
+                  {chip.label}
                 </button>
               );
             })}
           </div>
 
-          {promoRestaurant && (
-            <button
-              type="button"
-              onClick={() => onSelectRestaurant(promoRestaurant)}
-              className={`soft-card-shadow relative mt-5 flex w-full items-center justify-between gap-4 overflow-hidden rounded-[20px] bg-[#D9232E] p-4 text-left text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D] ${
-                isResponsive ? 'md:mt-6 md:p-6' : ''
-              }`}
-            >
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]"
-              >
-                <defs>
-                  <pattern
-                    id="aso-oke-weave"
-                    width="24"
-                    height="24"
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <path
-                      d="M0 12L12 0L24 12L12 24Z"
-                      fill="none"
-                      stroke="#FAF6F1"
-                      strokeWidth="1.2"
-                    />
-                    <path
-                      d="M6 12L12 6L18 12L12 18Z"
-                      fill="none"
-                      stroke="#FAF6F1"
-                      strokeWidth="0.9"
-                    />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#aso-oke-weave)" />
-              </svg>
-
-              <div className="relative z-10 min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-[#F4E8D6] md:text-xs">
-                  Weekend Owambe Feast
-                </p>
-                <h2
-                  className={`font-display mt-1 leading-snug font-extrabold text-[#FAF6F1] ${
-                    isResponsive ? 'text-base md:text-2xl' : 'text-base'
-                  }`}
-                >
-                  Weekend Owambe Feast • 20% Off Party Packs
-                </h2>
-                {isResponsive && (
-                  <p className="mt-1 hidden text-sm text-[#F4E8D6] md:block">
-                    Smoky firewood party Jollof, grilled chicken, and sweet dodo delivered hot across Nigeria.
-                  </p>
-                )}
-                <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-[#FAF6F1] px-3.5 py-1.5 text-[11px] font-bold text-[#D9232E] md:mt-4 md:text-xs">
-                  Chop Now
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </span>
-              </div>
-
-              <div
-                className={`relative z-10 shrink-0 overflow-hidden rounded-2xl bg-[#FAF6F1]/15 p-1 ring-1 ring-[#FAF6F1]/30 ${
-                  isResponsive ? 'h-22 w-22 md:h-32 md:w-44' : 'h-22 w-22'
-                }`}
-              >
-                <PlateImage
-                  src={promoRestaurant.heroImageUrl}
-                  alt="Smoky Jollof rice and grilled chicken"
-                  className="h-full w-full rounded-xl"
-                />
-              </div>
-            </button>
-          )}
-
-          <div className="mt-6 flex items-center justify-between">
-            <h2
-              className={`font-display font-extrabold tracking-tight text-[#1E1916] ${
-                isResponsive ? 'text-lg md:text-xl' : 'text-lg'
-              }`}
-            >
-              Popular Bukas &amp; Kitchens
-            </h2>
-            {(activeCategory !== 'all' ||
-              filterOption !== 'all' ||
-              searchQuery.trim()) && (
+          <div className="mt-6 flex items-end justify-between gap-3">
+            <div>
+              <h1 className="font-heading text-xl font-bold tracking-tight text-text-primary md:text-2xl">
+                Fresh homemade plates near you
+              </h1>
+              <p className="mt-0.5 text-xs text-text-secondary md:text-sm">
+                Tap any plate to inspect the kitchen menu or order directly.
+              </p>
+            </div>
+            {(activeCategory !== 'all' || searchQuery.trim()) && (
               <button
                 type="button"
                 onClick={() => {
                   onChangeCategory('all');
-                  setFilterOption('all');
                   setSearchQuery('');
                 }}
-                className="text-xs font-semibold text-[#D9232E]"
+                className="shrink-0 cursor-pointer text-xs font-semibold text-primary hover:text-primary-dark"
               >
-                Reset
+                Clear filters
               </button>
             )}
           </div>
 
-          <div
-            className={`mt-3.5 ${
-              isResponsive
-                ? 'grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-5 xl:grid-cols-3'
-                : 'space-y-4'
-            }`}
-          >
-            {filteredRestaurants.length === 0 ? (
-              <div className="soft-card-shadow col-span-full rounded-[20px] bg-white p-6 text-center">
-                <p className="font-display text-sm font-bold text-[#1E1916]">
-                  No kitchens match those filters
-                </p>
-                <p className="mt-1 text-xs text-[#5C5049]">
-                  Clear your search or category filter to view all kitchens.
-                </p>
-              </div>
-            ) : (
-              filteredRestaurants.map(({ restaurant, distanceKm }, index) => {
-                const isSelected = restaurant.id === selectedRestaurantId;
+          {isRefreshing ? (
+            <div
+              className={`mt-4 grid gap-4 ${
+                isResponsive
+                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                  : 'grid-cols-1'
+              }`}
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <FoodCardSkeleton key={n} />
+              ))}
+            </div>
+          ) : feedPlates.length === 0 ? (
+            <div className="mt-6">
+              <EmptyState
+                emoji="🍲"
+                title={
+                  searchQuery.trim() || activeCategory !== 'all'
+                    ? 'No matching plates found'
+                    : 'No food posted yet. Be the first! 🍲'
+                }
+                description={
+                  searchQuery.trim() || activeCategory !== 'all'
+                    ? 'Try clearing your search or choosing another category chip above.'
+                    : 'Neighborhood sellers have not posted in this zone yet. Share a homemade pot!'
+                }
+                actionLabel={
+                  searchQuery.trim() || activeCategory !== 'all'
+                    ? 'Show All Plates'
+                    : 'Post Food'
+                }
+                onAction={() => {
+                  if (searchQuery.trim() || activeCategory !== 'all') {
+                    onChangeCategory('all');
+                    setSearchQuery('');
+                  } else {
+                    onNavigateScreen('post');
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              className={`mt-4 grid gap-5 ${
+                isResponsive
+                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                  : 'grid-cols-1'
+              }`}
+            >
+              {feedPlates.map(({ item, restaurant, distanceKm }, index) => {
+                const isAvailable = item.isAvailable !== false;
+                const ratingValue = item.rating ?? restaurant.rating;
+
                 return (
-                  <motion.button
-                    key={restaurant.id}
-                    type="button"
+                  <motion.div
+                    key={item.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
-                      duration: 0.28,
-                      delay: Math.min(index * 0.05, 0.25),
+                      duration: 0.22,
+                      delay: Math.min(index * 0.03, 0.2),
                       ease: [0.16, 1, 0.3, 1],
                     }}
-                    whileHover={{ y: -3 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={() => onSelectRestaurant(restaurant)}
-                    className={`soft-card-shadow group block w-full overflow-hidden rounded-[20px] bg-white text-left ${
-                      isSelected ? 'ring-2 ring-[#D9232E]/40' : ''
-                    }`}
                   >
-                    <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#F4E8D6]">
-                      <PlateImage
-                        src={restaurant.heroImageUrl}
-                        alt={restaurant.name}
-                        className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
-                      />
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-[#1E1916] backdrop-blur-xs">
-                        <Clock className="h-3 w-3 text-[#D9232E]" />
-                        <span className="tabular-nums-clean">
-                          {restaurant.deliveryMinutes}
-                        </span>
-                      </div>
+                    <Card
+                      padding="none"
+                      interactive
+                      className="flex h-full flex-col overflow-hidden"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectRestaurant(restaurant)}
+                        className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden bg-primary-soft text-left"
+                      >
+                        <PlateImage
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-full w-full transition-transform duration-200 hover:scale-[1.03]"
+                        />
 
-                      {restaurant.promoLabel && (
-                        <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-[#C85A32] px-2.5 py-1 text-[11px] font-semibold text-[#FAF6F1]">
-                          <Flame className="h-3 w-3 text-[#D99B26]" />
-                          <span>{restaurant.promoLabel}</span>
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <Badge variant={isAvailable ? 'mango' : 'error'}>
+                            {isAvailable ? (
+                              <>
+                                <Star className="h-3 w-3 fill-text-primary" />
+                                <span className="tabular-nums-clean">
+                                  {ratingValue.toFixed(1)}
+                                </span>
+                                {item.isNew && <span>· New</span>}
+                              </>
+                            ) : (
+                              'Out of stock'
+                            )}
+                          </Badge>
                         </div>
-                      )}
-                    </div>
 
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-display truncate text-base font-bold text-[#1E1916]">
-                          {restaurant.name}
-                        </h3>
-                        <div className="flex shrink-0 items-center gap-1 text-xs font-bold text-[#1E1916]">
-                          <Star className="h-3.5 w-3.5 fill-[#D99B26] text-[#D99B26]" />
-                          <span className="tabular-nums-clean">
-                            {restaurant.rating.toFixed(1)}
-                          </span>
+                        {isAvailable && (
+                          <div className="absolute top-3 right-3">
+                            <Badge variant="peach">{distanceKm} km</Badge>
+                          </div>
+                        )}
+                      </button>
+
+                      <div className="flex flex-1 flex-col justify-between p-4">
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => onSelectRestaurant(restaurant)}
+                            className="cursor-pointer text-left"
+                          >
+                            <h2 className="font-heading line-clamp-1 text-base font-bold text-text-primary transition-colors hover:text-primary">
+                              {item.name}
+                            </h2>
+                          </button>
+
+                          <p className="mt-0.5 truncate text-xs font-medium text-text-secondary">
+                            {restaurant.name} · {restaurant.area}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border-soft pt-3">
+                          <div>
+                            <p className="tabular-nums-clean font-heading text-lg font-bold text-primary">
+                              {formatNaira(item.price)}
+                            </p>
+                            <p className="text-[11px] font-medium text-success">
+                              {isAvailable ? 'Available now' : 'Restocking soon'}
+                            </p>
+                          </div>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={!isAvailable}
+                            onClick={() => onOrderPlate(restaurant, item)}
+                          >
+                            {isAvailable ? 'Order' : 'Sold Out'}
+                          </Button>
                         </div>
                       </div>
-
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-[#5C5049]">
-                        <span className="truncate">{restaurant.area}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="tabular-nums-clean shrink-0 font-medium text-[#1E1916]">
-                          {distanceKm} km away
-                        </span>
-                      </div>
-
-                      <div className="mt-2.5 flex items-center justify-between border-t border-[#E6DDD3] pt-2.5 text-xs">
-                        <p className="truncate text-[#5C5049]">
-                          {restaurant.cuisineTags.slice(0, 2).join(' · ')}
-                        </p>
-                        <span
-                          className={`tabular-nums-clean shrink-0 font-semibold ${
-                            restaurant.deliveryFee === 0
-                              ? 'text-[#C85A32]'
-                              : 'text-[#1E1916]'
-                          }`}
-                        >
-                          {restaurant.deliveryFee === 0
-                            ? 'Free delivery'
-                            : `${formatNaira(restaurant.deliveryFee)} delivery`}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.button>
+                    </Card>
+                  </motion.div>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      <nav
-        aria-label="Home bottom navigation"
-        className={`floating-bar-shadow absolute right-4 bottom-5 left-4 z-20 grid h-14 grid-cols-4 items-center rounded-[20px] border border-[#E6DDD3] bg-white/95 px-2 backdrop-blur-md ${
+      <MobileBottomNav
+        activeNav={activeBottomNav}
+        onSelect={handleBottomNavSelect}
+        orderCount={activeOrderCount}
+        className={`absolute right-0 bottom-0 left-0 ${
           isResponsive ? 'md:hidden' : ''
         }`}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveNav('home')}
-          className={`relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl transition-colors ${
-            activeNav === 'home' ? 'text-[#D9232E]' : 'text-[#5C5049]'
-          }`}
-        >
-          {activeNav === 'home' && (
-            <span className="absolute top-0.5 h-0.5 w-5 rounded-full bg-[#D9232E]" />
-          )}
-          <Home className="h-[18px] w-[18px]" strokeWidth={2.2} />
-          <span className="text-[10px] font-semibold">Home</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setActiveNav('search');
-            searchInputRef.current?.focus();
-          }}
-          className={`relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl transition-colors ${
-            activeNav === 'search' ? 'text-[#D9232E]' : 'text-[#5C5049]'
-          }`}
-        >
-          {activeNav === 'search' && (
-            <span className="absolute top-0.5 h-0.5 w-5 rounded-full bg-[#D9232E]" />
-          )}
-          <Search className="h-[18px] w-[18px]" strokeWidth={2} />
-          <span className="text-[10px] font-medium">Search</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenOrders}
-          className="relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl text-[#5C5049] transition-colors hover:text-[#1E1916]"
-        >
-          <div className="relative">
-            <ReceiptText className="h-[18px] w-[18px]" strokeWidth={2} />
-            {activeOrderCount > 0 && (
-              <span className="tabular-nums-clean absolute -top-1 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#D9232E] px-1 text-[9px] font-bold text-white">
-                {activeOrderCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[10px] font-medium">Orders</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsProfileOpen(true)}
-          className="flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl text-[#5C5049] transition-colors hover:text-[#1E1916]"
-        >
-          <User className="h-[18px] w-[18px]" strokeWidth={2} />
-          <span className="text-[10px] font-medium">Profile</span>
-        </button>
-      </nav>
+      />
 
       {isLocationOpen && (
         <div className={modalWrapperClass}>
           <div className={modalCardClass}>
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="font-display text-base font-bold text-[#1E1916]">
+                <h3 className="font-heading text-base font-bold text-text-primary">
                   Select Location in Nigeria
                 </h3>
-                <p className="text-[11px] text-[#5C5049]">
+                <p className="text-xs text-text-secondary">
                   All 36 States, FCT &amp; 774 Local Governments
                 </p>
               </div>
@@ -593,7 +488,7 @@ export function HomeDiscoveryScreen({
                 type="button"
                 aria-label="Close location picker"
                 onClick={() => setIsLocationOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-bg text-text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -625,9 +520,9 @@ export function HomeDiscoveryScreen({
               }}
             />
 
-            <div className="mt-4 border-t border-[#E6DDD3] pt-3">
-              <p className="mb-2 text-[11px] font-semibold text-[#5C5049]">
-                Quick Cities
+            <div className="mt-4 border-t border-border-soft pt-3">
+              <p className="mb-2 text-xs font-semibold text-text-secondary">
+                Popular Cities
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {DELIVERY_LOCATIONS.slice(0, 6).map((loc) => (
@@ -638,10 +533,10 @@ export function HomeDiscoveryScreen({
                       onChangeLocation(loc);
                       setIsLocationOpen(false);
                     }}
-                    className={`min-h-[34px] rounded-full px-3 text-[11px] font-semibold ${
+                    className={`min-h-[34px] cursor-pointer rounded-full px-3 text-xs font-semibold transition-colors ${
                       loc === location
-                        ? 'bg-[#D9232E] text-white'
-                        : 'bg-[#F4E8D6] text-[#1E1916]'
+                        ? 'bg-primary text-white'
+                        : 'bg-primary-soft text-text-primary hover:bg-primary-soft/80'
                     }`}
                   >
                     {loc}
@@ -650,190 +545,14 @@ export function HomeDiscoveryScreen({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsLocationOpen(false)}
-              className="mt-4 min-h-[46px] w-full rounded-2xl bg-[#D9232E] text-sm font-bold text-[#FAF6F1] active:bg-[#9E141D]"
-            >
-              Show Kitchens Near {location}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isFilterOpen && (
-        <div className={modalWrapperClass}>
-          <div className={modalCardClass}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-display text-base font-bold text-[#1E1916]">
-                Filter Kitchens
-              </h3>
-              <button
+            <div className="mt-4">
+              <Button
                 type="button"
-                onClick={() => setIsFilterOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
+                fullWidth
+                onClick={() => setIsLocationOpen(false)}
               >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  { id: 'all', label: 'All Kitchens' },
-                  { id: 'nearby', label: 'Close to me (< 5 km)' },
-                  { id: 'free', label: 'Free Delivery' },
-                  { id: 'fast', label: 'Under 25 mins' },
-                  { id: 'top', label: 'Top Rated (4.8+)' },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    setFilterOption(opt.id);
-                    setIsFilterOpen(false);
-                  }}
-                  className={`min-h-[42px] rounded-full px-4 text-xs font-semibold transition-colors ${
-                    filterOption === opt.id
-                      ? 'bg-[#D9232E] text-white'
-                      : 'bg-[#F4E8D6] text-[#1E1916]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isNotificationsOpen && (
-        <div className={modalWrapperClass}>
-          <div className={modalCardClass}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-display text-base font-bold text-[#1E1916]">
-                Updates
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsNotificationsOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsNotificationsOpen(false);
-                  onOpenOrders();
-                }}
-                className="w-full rounded-2xl bg-[#FAF6F1] p-3.5 text-left"
-              >
-                <p className="text-xs font-bold text-[#D9232E]">
-                  Rider Don Dey Come
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-[#1E1916]">
-                  Emeka Nwosu is 12 mins away with your Jollof pack.
-                </p>
-              </button>
-              <div className="rounded-2xl bg-[#F4E8D6]/70 p-3.5">
-                <p className="text-xs font-bold text-[#C85A32]">
-                  Weekend Owambe Feast
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-[#1E1916]">
-                  Save 20% on party Jollof &amp; Suya combos all weekend.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isProfileOpen && (
-        <div className={modalWrapperClass}>
-          <div className={modalCardClass}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#F4E8D6] text-[#D9232E]">
-                  {user.avatarUrl ? (
-                    <PlateImage
-                      src={user.avatarUrl}
-                      alt={user.name}
-                      className="h-full w-full"
-                    />
-                  ) : (
-                    <User className="h-5 w-5" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-display truncate text-base font-bold text-[#1E1916]">
-                    {user.name}
-                  </h3>
-                  <p className="truncate text-xs text-[#5C5049]">
-                    {user.phone}
-                    {user.email ? ` · ${user.email}` : ''}
-                  </p>
-                  <p className="truncate text-[11px] font-medium text-[#D9232E]">
-                    {user.role === 'seller'
-                      ? 'Seller Mode'
-                      : `Drop-off: ${location}`}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsProfileOpen(false)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  onOpenAccountPortal('profile');
-                }}
-                className="min-h-[46px] w-full rounded-2xl bg-[#D9232E] text-sm font-semibold text-white transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
-              >
-                Edit My Profile &amp; Photo
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  onOpenAccountPortal('buyer');
-                }}
-                className="min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-white text-sm font-semibold text-[#1E1916]"
-              >
-                Switch Buyer / Delivery Address
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  onOpenAccountPortal('seller');
-                }}
-                className="min-h-[46px] w-full rounded-2xl bg-[#1E1916] text-sm font-semibold text-white"
-              >
-                {user.role === 'seller'
-                  ? 'Seller: Post New Food Photo'
-                  : 'Seller Login · Post Food'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  onOpenOrders();
-                }}
-                className="min-h-[46px] w-full rounded-2xl bg-[#F4E8D6] text-sm font-semibold text-[#1E1916]"
-              >
-                Track Active Order
-              </button>
+                Show Plates Near {location}
+              </Button>
             </div>
           </div>
         </div>

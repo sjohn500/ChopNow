@@ -7,9 +7,9 @@ export type FoodCategoryKey =
   | 'pepper_soup'
   | 'drinks';
 
-export type ScreenId = 'home' | 'menu' | 'tracking';
+export type ScreenId = 'home' | 'menu' | 'post' | 'orders' | 'profile';
 
-export type TrackingStage = 'confirmed' | 'preparing' | 'on_the_way';
+export type TrackingStage = 'pending' | 'accepted' | 'delivered';
 
 export type UserRole = 'buyer' | 'seller';
 
@@ -32,6 +32,9 @@ export interface MenuItem {
   price: number;
   category: 'Combos' | 'Swallows' | 'Proteins' | 'Sides';
   imageUrl: string;
+  isAvailable?: boolean;
+  isNew?: boolean;
+  rating?: number;
 }
 
 export interface Restaurant {
@@ -66,10 +69,12 @@ export interface ActiveOrder {
   destination: string;
   distanceKm: number;
   itemsSummary: string;
+  plateImageUrl?: string;
   totalAmount: number;
   stage: TrackingStage;
   etaMinutes: string;
   arrivalTime: string;
+  createdAt?: string;
   rider: {
     name: string;
     phone: string;

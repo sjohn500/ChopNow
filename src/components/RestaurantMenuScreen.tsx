@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 import { formatNaira, getDistanceToRestaurant } from '../data/deliveryData';
 import { AuthUser, CartEntry, MenuItem, Restaurant } from '../types/delivery';
 import { PlateImage } from './PlateImage';
+import { Badge, Button, Card, EmptyState } from './ui';
 
 interface RestaurantMenuScreenProps {
   restaurant: Restaurant;
@@ -25,7 +26,7 @@ interface RestaurantMenuScreenProps {
   onAddItem: (item: MenuItem) => void;
   onDecrementItem: (itemId: string) => void;
   onTrackKitchenLocation: (restaurant: Restaurant) => void;
-  onEditBuyerAccount: () => void;
+  onEditProfile: () => void;
   onCheckoutConfirm: (paymentMethod: string) => void;
   layoutMode?: 'frame' | 'responsive';
 }
@@ -46,7 +47,7 @@ export function RestaurantMenuScreen({
   onAddItem,
   onDecrementItem,
   onTrackKitchenLocation,
-  onEditBuyerAccount,
+  onEditProfile,
   onCheckoutConfirm,
   layoutMode = 'frame',
 }: RestaurantMenuScreenProps) {
@@ -77,12 +78,14 @@ export function RestaurantMenuScreen({
   const trayBreakdownContent = (closeOnChange?: () => void) => (
     <>
       {cart.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#E6DDD3] bg-[#FAF6F1] p-5 text-center">
-          <ShoppingBag className="mx-auto h-6 w-6 text-[#D9232E]" />
-          <p className="mt-2 font-display text-sm font-bold text-[#1E1916]">
+        <div className="rounded-[16px] border border-dashed border-border-soft bg-bg p-5 text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-primary">
+            <ShoppingBag className="h-5 w-5" />
+          </div>
+          <p className="font-heading mt-2.5 text-sm font-bold text-text-primary">
             Your tray is empty
           </p>
-          <p className="mt-1 text-xs text-[#5C5049]">
+          <p className="mt-1 text-xs text-text-secondary">
             Tap + on any dish to build your plate from {restaurant.name}.
           </p>
         </div>
@@ -92,13 +95,13 @@ export function RestaurantMenuScreen({
             {cart.map(({ item, quantity }) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-2 rounded-2xl bg-[#FAF6F1] px-3.5 py-2.5"
+                className="flex items-center justify-between gap-2 rounded-[14px] bg-bg px-3.5 py-2.5"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[#1E1916]">
+                  <p className="truncate text-sm font-semibold text-text-primary">
                     {quantity}x {item.name}
                   </p>
-                  <p className="tabular-nums-clean text-xs text-[#5C5049]">
+                  <p className="tabular-nums-clean text-xs font-semibold text-primary">
                     {formatNaira(item.price * quantity)}
                   </p>
                 </div>
@@ -107,7 +110,7 @@ export function RestaurantMenuScreen({
                     type="button"
                     aria-label={`Remove one ${item.name}`}
                     onClick={() => onDecrementItem(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-[#1E1916]"
+                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-surface text-xs font-bold text-text-primary transition-colors hover:bg-primary-soft"
                   >
                     -
                   </button>
@@ -115,7 +118,7 @@ export function RestaurantMenuScreen({
                     type="button"
                     aria-label={`Add one more ${item.name}`}
                     onClick={() => onAddItem(item)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-[#D9232E] text-xs font-bold text-white"
+                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-primary text-xs font-bold text-white transition-colors hover:bg-primary-dark"
                   >
                     +
                   </button>
@@ -124,32 +127,32 @@ export function RestaurantMenuScreen({
             ))}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] p-3">
+          <div className="mt-4 rounded-[14px] border border-border-soft bg-bg p-3.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-[#5C5049]">
+              <span className="text-xs font-semibold text-text-secondary">
                 Delivering to ({user.name})
               </span>
               <button
                 type="button"
                 onClick={() => {
                   closeOnChange?.();
-                  onEditBuyerAccount();
+                  onEditProfile();
                 }}
-                className="text-xs font-bold text-[#D9232E]"
+                className="cursor-pointer text-xs font-semibold text-primary transition-colors hover:text-primary-dark"
               >
                 Change
               </button>
             </div>
-            <p className="mt-1 text-xs font-bold text-[#1E1916]">
+            <p className="mt-1 text-xs font-semibold text-text-primary">
               {user.buyerLandmark} · {buyerLocation}
             </p>
-            <p className="tabular-nums-clean mt-0.5 text-[11px] text-[#5C5049]">
+            <p className="tabular-nums-clean mt-0.5 text-xs text-text-secondary">
               {user.phone} · {distanceKm} km from {restaurant.name}
             </p>
           </div>
 
           <div className="mt-4">
-            <p className="mb-1.5 text-xs font-semibold text-[#5C5049]">
+            <p className="mb-1.5 text-xs font-semibold text-text-secondary">
               Payment Method
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -158,10 +161,10 @@ export function RestaurantMenuScreen({
                   key={m}
                   type="button"
                   onClick={() => setPaymentMethod(m)}
-                  className={`min-h-[42px] rounded-xl px-2.5 text-xs font-semibold ${
+                  className={`min-h-[42px] cursor-pointer rounded-[12px] px-2.5 text-xs font-semibold transition-all duration-150 ${
                     paymentMethod === m
-                      ? 'bg-[#F4E8D6] text-[#D9232E] ring-1 ring-[#D9232E]'
-                      : 'bg-[#FAF6F1] text-[#1E1916]'
+                      ? 'bg-primary-soft text-primary ring-1 ring-primary'
+                      : 'bg-bg text-text-primary hover:bg-primary-soft/50'
                   }`}
                 >
                   {m}
@@ -170,18 +173,20 @@ export function RestaurantMenuScreen({
             </div>
           </div>
 
-          <div className="mt-4 space-y-1.5 border-t border-[#E6DDD3] pt-3 text-xs">
-            <div className="flex justify-between text-[#5C5049]">
+          <div className="mt-4 space-y-1.5 border-t border-border-soft pt-3 text-xs">
+            <div className="flex justify-between text-text-secondary">
               <span>Subtotal</span>
-              <span className="tabular-nums-clean">
+              <span className="tabular-nums-clean font-medium text-text-primary">
                 {formatNaira(subtotal)}
               </span>
             </div>
-            <div className="flex justify-between text-[#5C5049]">
+            <div className="flex justify-between text-text-secondary">
               <span>Delivery fee</span>
               <span
                 className={`tabular-nums-clean font-semibold ${
-                  restaurant.deliveryFee === 0 ? 'text-[#C85A32]' : ''
+                  restaurant.deliveryFee === 0
+                    ? 'text-success'
+                    : 'text-text-primary'
                 }`}
               >
                 {restaurant.deliveryFee === 0
@@ -189,31 +194,33 @@ export function RestaurantMenuScreen({
                   : formatNaira(restaurant.deliveryFee)}
               </span>
             </div>
-            <div className="flex justify-between pt-1 text-sm font-bold text-[#1E1916]">
+            <div className="flex justify-between pt-1.5 text-sm font-bold text-text-primary">
               <span>Total</span>
-              <span className="tabular-nums-clean">
+              <span className="tabular-nums-clean text-primary">
                 {formatNaira(finalTotal)}
               </span>
             </div>
           </div>
 
-          <button
+          <Button
             type="button"
+            fullWidth
+            size="lg"
+            className="mt-4"
             onClick={() => {
               closeOnChange?.();
               onCheckoutConfirm(paymentMethod);
             }}
-            className="mt-4 min-h-[48px] w-full rounded-2xl bg-[#D9232E] text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
           >
-            Chop Now · {formatNaira(finalTotal)}
-          </button>
+            Place Order · {formatNaira(finalTotal)}
+          </Button>
         </>
       )}
     </>
   );
 
   return (
-    <div className="relative flex h-full flex-col bg-[#FAF6F1]">
+    <div className="relative flex h-full flex-col bg-bg">
       <div
         className={`no-scrollbar flex-1 overflow-y-auto ${
           isResponsive ? 'pb-28 lg:pb-12' : 'pb-28'
@@ -228,8 +235,8 @@ export function RestaurantMenuScreen({
         >
           <div className={isResponsive ? 'lg:col-span-8' : ''}>
             <div
-              className={`relative w-full overflow-hidden bg-[#E8D5B7] ${
-                isResponsive ? 'h-56 md:h-64 md:rounded-t-[24px]' : 'h-56'
+              className={`relative w-full overflow-hidden bg-primary-soft ${
+                isResponsive ? 'h-56 md:h-64 md:rounded-t-[16px]' : 'h-56'
               }`}
             >
               <PlateImage
@@ -237,7 +244,7 @@ export function RestaurantMenuScreen({
                 alt={restaurant.name}
                 className="h-full w-full"
               />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1E1916]/60 via-[#1E1916]/20 to-[#1E1916]/45" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-text-primary/65 via-text-primary/15 to-text-primary/40" />
 
               <div
                 className={`absolute right-4 left-4 flex items-center justify-between ${
@@ -246,9 +253,9 @@ export function RestaurantMenuScreen({
               >
                 <button
                   type="button"
-                  aria-label="Back to discovery"
+                  aria-label="Back to home feed"
                   onClick={onBack}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#1E1916] shadow-md backdrop-blur-md transition-transform active:scale-95"
+                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-surface/95 text-text-primary shadow-md backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
@@ -256,87 +263,89 @@ export function RestaurantMenuScreen({
                 <button
                   type="button"
                   aria-label={
-                    isFavorite ? 'Remove favorite' : 'Favorite restaurant'
+                    isFavorite ? 'Remove favorite' : 'Favorite kitchen'
                   }
                   onClick={() => setIsFavorite((f) => !f)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-[#1E1916] shadow-md backdrop-blur-md transition-transform active:scale-95"
+                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-surface/95 text-text-primary shadow-md backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95"
                 >
                   <Heart
                     className={`h-5 w-5 transition-colors ${
                       isFavorite
-                        ? 'fill-[#D9232E] text-[#D9232E]'
-                        : 'text-[#1E1916]'
+                        ? 'fill-primary text-primary'
+                        : 'text-text-primary'
                     }`}
                   />
                 </button>
               </div>
             </div>
 
-            <div className="relative z-10 -mt-6 rounded-t-[24px] bg-white px-5 pt-5 pb-4 shadow-[0_-8px_24px_rgba(30,25,22,0.06)]">
+            <div className="soft-card-shadow relative z-10 -mt-6 rounded-t-[20px] bg-surface px-5 pt-5 pb-4">
               <div className="flex items-start justify-between gap-3">
                 <h1
-                  className={`font-display font-extrabold tracking-tight text-[#1E1916] ${
+                  className={`font-heading font-bold tracking-tight text-text-primary ${
                     isResponsive ? 'text-xl md:text-2xl' : 'text-xl'
                   }`}
                 >
                   {restaurant.name}
                 </h1>
-                <div className="flex shrink-0 items-center gap-1 rounded-full bg-[#F4E8D6] px-2.5 py-1 text-xs font-bold text-[#1E1916]">
-                  <Star className="h-3.5 w-3.5 fill-[#D99B26] text-[#D99B26]" />
+                <Badge variant="peach" className="shrink-0">
+                  <Star className="h-3.5 w-3.5 fill-accent text-accent" />
                   <span className="tabular-nums-clean">
                     {restaurant.rating.toFixed(1)}
                   </span>
-                  <span className="font-normal text-[#5C5049]">
+                  <span className="font-normal text-text-secondary">
                     ({restaurant.reviewCount}+)
                   </span>
-                </div>
+                </Badge>
               </div>
 
-              <p className="mt-1.5 text-xs font-medium text-[#5C5049] md:text-sm">
+              <p className="mt-1.5 text-xs font-medium text-text-secondary md:text-sm">
                 {restaurant.cuisineTags.join(' • ')}
               </p>
 
-              <div className="mt-2.5 flex items-center gap-2.5 text-xs font-semibold">
-                <span className="tabular-nums-clean inline-flex items-center gap-1 text-[#1E1916]">
-                  <Clock className="h-3.5 w-3.5 text-[#D9232E]" />
+              <div className="mt-2.5 flex flex-wrap items-center gap-2.5 text-xs font-semibold">
+                <span className="tabular-nums-clean inline-flex items-center gap-1 text-text-primary">
+                  <Clock className="h-3.5 w-3.5 text-primary" />
                   {restaurant.deliveryMinutes}
                 </span>
-                <span className="text-[#5C5049]">·</span>
+                <span className="text-text-secondary">·</span>
                 <span
                   className={`tabular-nums-clean ${
                     restaurant.deliveryFee === 0
-                      ? 'text-[#C85A32]'
-                      : 'text-[#1E1916]'
+                      ? 'text-success'
+                      : 'text-text-primary'
                   }`}
                 >
                   {restaurant.deliveryFee === 0
                     ? 'Free delivery'
                     : `${formatNaira(restaurant.deliveryFee)} delivery`}
                 </span>
+                <Badge variant="success">Available</Badge>
               </div>
 
-              <div className="mt-3.5 flex items-center justify-between gap-2 rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] px-3 py-2.5">
+              <div className="mt-3.5 flex items-center justify-between gap-2 rounded-[14px] border border-border-soft bg-bg px-3.5 py-2.5">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-[#1E1916]">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-[#D9232E]" />
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">{restaurant.address}</span>
                   </p>
-                  <p className="tabular-nums-clean mt-0.5 text-[11px] font-medium text-[#5C5049]">
+                  <p className="tabular-nums-clean mt-0.5 text-xs text-text-secondary">
                     {distanceKm} km from {buyerLocation}
                   </p>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="soft"
+                  size="sm"
                   onClick={() => onTrackKitchenLocation(restaurant)}
-                  className="inline-flex min-h-[36px] shrink-0 items-center gap-1 rounded-full bg-[#F4E8D6] px-3 text-[11px] font-bold text-[#1E1916] transition-colors hover:bg-[#E8D5B7]"
                 >
-                  <Navigation className="h-3 w-3 text-[#D9232E]" />
+                  <Navigation className="h-3.5 w-3.5 text-primary" />
                   Map
-                </button>
+                </Button>
               </div>
             </div>
 
-            <div className="sticky top-0 z-20 border-b border-[#E6DDD3] bg-white/95 px-5 backdrop-blur-md md:rounded-b-[20px]">
+            <div className="sticky top-0 z-20 border-b border-border-soft bg-surface/95 px-5 backdrop-blur-md md:rounded-b-[16px]">
               <div className="no-scrollbar flex justify-between gap-4 overflow-x-auto md:justify-start md:gap-8">
                 {MENU_TABS.map((tab) => {
                   const isActive = activeTab === tab;
@@ -345,10 +354,10 @@ export function RestaurantMenuScreen({
                       key={tab}
                       type="button"
                       onClick={() => setActiveTab(tab)}
-                      className={`relative min-h-[44px] shrink-0 text-xs whitespace-nowrap transition-colors md:text-sm ${
+                      className={`relative min-h-[44px] shrink-0 cursor-pointer text-xs whitespace-nowrap transition-colors duration-150 md:text-sm ${
                         isActive
-                          ? 'font-bold text-[#D9232E]'
-                          : 'font-medium text-[#5C5049] hover:text-[#1E1916]'
+                          ? 'font-bold text-primary'
+                          : 'font-medium text-text-secondary hover:text-text-primary'
                       }`}
                     >
                       {tab}
@@ -364,7 +373,7 @@ export function RestaurantMenuScreen({
                             stiffness: 420,
                             damping: 32,
                           }}
-                          className="absolute right-0 bottom-0 left-0 h-[2.5px] rounded-full bg-[#D9232E]"
+                          className="absolute right-0 bottom-0 left-0 h-[2.5px] rounded-full bg-primary"
                         />
                       )}
                     </button>
@@ -375,73 +384,82 @@ export function RestaurantMenuScreen({
 
             <div className={isResponsive ? 'px-5 pt-4 md:px-0' : 'px-5 pt-4'}>
               {visibleItems.length === 0 ? (
-                <div className="soft-card-shadow rounded-[20px] bg-white p-6 text-center">
-                  <p className="font-display text-sm font-bold text-[#1E1916]">
-                    No dishes in {activeTab} yet
-                  </p>
-                  <p className="mt-1 text-xs text-[#5C5049]">
-                    Check another category tab or post a plate from Seller
-                    Login.
-                  </p>
-                </div>
+                <EmptyState
+                  emoji="🍲"
+                  title={`No dishes in ${activeTab} yet`}
+                  description="Switch to another category tab or post a fresh dish to this kitchen."
+                />
               ) : (
                 <div
                   className={
                     isResponsive
-                      ? 'soft-card-shadow divide-y divide-[#E6DDD3] overflow-hidden rounded-[20px] bg-white md:grid md:grid-cols-2 md:gap-4 md:divide-y-0 md:overflow-visible md:bg-transparent md:shadow-none'
-                      : 'soft-card-shadow divide-y divide-[#E6DDD3] overflow-hidden rounded-[20px] bg-white'
+                      ? 'grid grid-cols-1 gap-4 md:grid-cols-2'
+                      : 'space-y-3'
                   }
                 >
                   {visibleItems.map((item) => {
                     const qty = getQuantity(item.id);
+                    const isUnavailable = item.isAvailable === false;
                     return (
-                      <article
+                      <Card
                         key={item.id}
+                        padding="none"
+                        interactive={!isUnavailable}
                         className={`flex items-center gap-3.5 p-4 ${
-                          isResponsive
-                            ? 'md:soft-card-shadow md:rounded-[20px] md:bg-white'
-                            : ''
+                          isUnavailable ? 'opacity-75' : ''
                         }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <h2 className="font-display text-sm font-bold text-[#1E1916]">
-                            {item.name}
-                          </h2>
-                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#5C5049]">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h2 className="font-heading text-sm font-bold text-text-primary">
+                              {item.name}
+                            </h2>
+                            {item.isNew && !isUnavailable && (
+                              <Badge variant="mango">New</Badge>
+                            )}
+                            {isUnavailable && (
+                              <Badge variant="error">Out of stock</Badge>
+                            )}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-text-secondary">
                             {item.description}
                           </p>
                           <div className="mt-3 flex items-center justify-between gap-2">
-                            <span className="tabular-nums-clean text-sm font-extrabold text-[#1E1916]">
+                            <span className="tabular-nums-clean font-heading text-sm font-bold text-primary">
                               {formatNaira(item.price)}
                             </span>
 
-                            {qty === 0 ? (
+                            {isUnavailable ? (
+                              <span className="text-xs font-semibold text-error">
+                                Unavailable
+                              </span>
+                            ) : qty === 0 ? (
                               <button
                                 type="button"
-                                aria-label={`Add ${item.name} to plate`}
+                                aria-label={`Add ${item.name} to tray`}
                                 onClick={() => onAddItem(item)}
-                                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D9232E] text-white shadow-xs transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+                                className="coral-glow-shadow flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-primary text-white transition-all duration-150 hover:bg-primary-dark active:scale-95"
                               >
                                 <Plus className="h-4 w-4" strokeWidth={2.5} />
                               </button>
                             ) : (
-                              <div className="flex items-center gap-2 rounded-full bg-[#F4E8D6] px-1.5 py-1">
+                              <div className="flex items-center gap-2 rounded-full bg-primary-soft px-1.5 py-1">
                                 <button
                                   type="button"
                                   aria-label={`Remove one ${item.name}`}
                                   onClick={() => onDecrementItem(item.id)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#1E1916]"
+                                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary transition-colors hover:bg-bg"
                                 >
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
-                                <span className="tabular-nums-clean min-w-[16px] text-center text-xs font-bold text-[#D9232E]">
+                                <span className="tabular-nums-clean min-w-[16px] text-center text-xs font-bold text-primary">
                                   {qty}
                                 </span>
                                 <button
                                   type="button"
                                   aria-label={`Add one more ${item.name}`}
                                   onClick={() => onAddItem(item)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-full bg-[#D9232E] text-white active:bg-[#9E141D]"
+                                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary-dark"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
                                 </button>
@@ -450,14 +468,14 @@ export function RestaurantMenuScreen({
                           </div>
                         </div>
 
-                        <div className="h-22 w-22 shrink-0 overflow-hidden rounded-2xl bg-[#F4E8D6]">
+                        <div className="h-22 w-22 shrink-0 overflow-hidden rounded-[14px] bg-primary-soft">
                           <PlateImage
                             src={item.imageUrl}
                             alt={item.name}
                             className="h-full w-full"
                           />
                         </div>
-                      </article>
+                      </Card>
                     );
                   })}
                 </div>
@@ -467,21 +485,23 @@ export function RestaurantMenuScreen({
 
           {isResponsive && (
             <aside className="hidden lg:col-span-4 lg:sticky lg:top-6 lg:block">
-              <div className="soft-card-shadow rounded-[24px] bg-white p-5">
-                <div className="mb-4 flex items-center justify-between gap-2 border-b border-[#E6DDD3] pb-3">
+              <Card padding="md">
+                <div className="mb-4 flex items-center justify-between gap-2 border-b border-border-soft pb-3">
                   <div>
-                    <h3 className="font-display text-base font-bold text-[#1E1916]">
+                    <h3 className="font-heading text-base font-bold text-text-primary">
                       Your Tray ({totalItems})
                     </h3>
-                    <p className="text-xs text-[#5C5049]">{restaurant.name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {restaurant.name}
+                    </p>
                   </div>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F4E8D6] text-[#D9232E]">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-primary">
                     <ShoppingBag className="h-4 w-4" />
                   </span>
                 </div>
 
                 {trayBreakdownContent()}
-              </div>
+              </Card>
             </aside>
           )}
         </div>
@@ -493,7 +513,7 @@ export function RestaurantMenuScreen({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className={`absolute right-4 bottom-5 left-4 z-20 ${
               isResponsive ? 'lg:hidden' : ''
             }`}
@@ -502,7 +522,7 @@ export function RestaurantMenuScreen({
               type="button"
               whileTap={{ scale: 0.98 }}
               onClick={() => setIsCartOpen(true)}
-              className="floating-bar-shadow tabular-nums-clean mx-auto flex min-h-[52px] w-full max-w-md items-center justify-between rounded-[18px] bg-[#D9232E] px-4 text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+              className="coral-glow-shadow tabular-nums-clean mx-auto flex min-h-[52px] w-full max-w-md cursor-pointer items-center justify-between rounded-full bg-primary px-5 text-sm font-bold text-white transition-colors duration-200 hover:bg-primary-dark"
             >
               <span className="flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4" />
@@ -519,29 +539,29 @@ export function RestaurantMenuScreen({
         <div
           className={
             isResponsive
-              ? 'fixed inset-0 z-50 flex items-end justify-center bg-[#1E1916]/45 backdrop-blur-[1px] md:items-center md:p-4'
-              : 'absolute inset-0 z-30 flex items-end bg-[#1E1916]/45 backdrop-blur-[1px]'
+              ? 'fixed inset-0 z-50 flex items-end justify-center bg-text-primary/45 backdrop-blur-[1px] md:items-center md:p-4'
+              : 'absolute inset-0 z-30 flex items-end bg-text-primary/45 backdrop-blur-[1px]'
           }
         >
           <div
             className={
               isResponsive
-                ? 'max-h-[85dvh] w-full overflow-y-auto rounded-t-[24px] bg-white p-5 pb-8 shadow-2xl md:max-w-lg md:rounded-[24px] md:pb-6'
-                : 'max-h-[85%] w-full overflow-y-auto rounded-t-[24px] bg-white p-5 pb-8'
+                ? 'max-h-[85dvh] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8 shadow-2xl md:max-w-lg md:rounded-[20px] md:pb-6'
+                : 'max-h-[85%] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8'
             }
           >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="font-display text-base font-bold text-[#1E1916]">
+                <h3 className="font-heading text-base font-bold text-text-primary">
                   Your Tray Summary
                 </h3>
-                <p className="text-xs text-[#5C5049]">{restaurant.name}</p>
+                <p className="text-xs text-text-secondary">{restaurant.name}</p>
               </div>
               <button
                 type="button"
                 aria-label="Close tray"
                 onClick={() => setIsCartOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-bg text-text-primary transition-colors hover:bg-primary-soft"
               >
                 <X className="h-4 w-4" />
               </button>

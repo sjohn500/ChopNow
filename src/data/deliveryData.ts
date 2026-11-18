@@ -420,7 +420,7 @@ export const INITIAL_CART: CartEntry[] = [
 ];
 
 export const INITIAL_ACTIVE_ORDER: ActiveOrder = {
-  code: 'CN-4082',
+  code: 'CB-4082',
   restaurantId: 'mama-put-express',
   restaurantName: 'Mama Put Express',
   restaurantArea: 'Eti-Osa, Lagos',
@@ -428,10 +428,12 @@ export const INITIAL_ACTIVE_ORDER: ActiveOrder = {
   destination: '22 Admiralty Way, Eti-Osa, Lagos',
   distanceKm: 0.9,
   itemsSummary: '1x Smoky Party Jollof & Sweet Dodo, 1x Chilled Pineapple Zobo & Fruit Press',
+  plateImageUrl: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
   totalAmount: 4500,
-  stage: 'on_the_way',
+  stage: 'accepted',
   etaMinutes: '12–16 mins',
   arrivalTime: '1:24 PM',
+  createdAt: new Date(Date.now() - 12 * 60000).toISOString(),
   rider: {
     name: 'Emeka Nwosu',
     phone: '0803 771 4290',

@@ -5,7 +5,6 @@ import {
   Clock,
   Compass,
   MapPin,
-  Navigation,
   ShieldCheck,
   Star,
   Store,
@@ -13,8 +12,8 @@ import {
 import { motion } from 'motion/react';
 import { formatNaira, getDistanceToRestaurant } from '../data/deliveryData';
 import { Restaurant, ScreenId } from '../types/delivery';
-import { AccountPortalTab } from './AccountPortalModal';
 import { PlateImage } from './PlateImage';
+import { Badge, Button, Card } from './ui';
 
 interface LandingPageProps {
   restaurants: Restaurant[];
@@ -22,7 +21,7 @@ interface LandingPageProps {
   isAuthenticated: boolean;
   onEnterApp: (screen?: ScreenId) => void;
   onSelectRestaurant: (restaurant: Restaurant) => void;
-  onOpenPortal: (tab: AccountPortalTab) => void;
+  onOpenAuth: (role?: 'buyer' | 'seller') => void;
 }
 
 const HERO_FEAST_IMAGE =
@@ -36,61 +35,53 @@ export function LandingPage({
   isAuthenticated,
   onEnterApp,
   onSelectRestaurant,
-  onOpenPortal,
+  onOpenAuth,
 }: LandingPageProps) {
   const featuredKitchens = restaurants.slice(0, 4);
 
   return (
-    <div className="min-h-dvh bg-[#FAF6F1] text-[#1E1916]">
-      <header className="sticky top-0 z-30 border-b border-[#E6DDD3] bg-[#FAF6F1]/92 backdrop-blur-md">
+    <div className="min-h-dvh bg-bg text-text-primary">
+      <header className="sticky top-0 z-30 border-b border-border-soft bg-bg/92 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-8 px-4 md:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="font-display shrink-0 text-xl font-extrabold tracking-tight whitespace-nowrap text-[#1E1916]"
+            className="font-heading shrink-0 cursor-pointer text-xl font-bold tracking-tight whitespace-nowrap text-text-primary"
           >
-            ChopBellyFull
+            Chop<span className="text-primary">BellyFull</span>
           </button>
 
           <nav
             aria-label="Landing navigation"
-            className="hidden items-center gap-6 text-sm font-medium text-[#5C5049] md:flex"
+            className="hidden items-center gap-6 text-sm font-medium text-text-secondary md:flex"
           >
             <a
               href="#plates"
-              className="shrink-0 whitespace-nowrap transition-colors hover:text-[#1E1916]"
+              className="shrink-0 whitespace-nowrap transition-colors hover:text-primary"
             >
-              Local Plates
+              Fresh Plates
             </a>
             <a
               href="#how-it-works"
-              className="shrink-0 whitespace-nowrap transition-colors hover:text-[#1E1916]"
+              className="shrink-0 whitespace-nowrap transition-colors hover:text-primary"
             >
               How It Works
             </a>
             <a
-              href="#coverage"
-              className="shrink-0 whitespace-nowrap transition-colors hover:text-[#1E1916]"
-            >
-              Nigeria Coverage
-            </a>
-            <a
               href="#sellers"
-              className="shrink-0 whitespace-nowrap transition-colors hover:text-[#1E1916]"
+              className="shrink-0 whitespace-nowrap transition-colors hover:text-primary"
             >
-              For Sellers
+              Sell Food
             </a>
           </nav>
 
-          <motion.button
+          <Button
             type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onEnterApp('home')}
-            className="min-h-[42px] shrink-0 rounded-full bg-[#D9232E] px-5 text-sm font-bold whitespace-nowrap text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+            size="sm"
+            onClick={() => (isAuthenticated ? onEnterApp('home') : onOpenAuth('buyer'))}
           >
-            {isAuthenticated ? 'Order Food' : 'Login / Sign Up'}
-          </motion.button>
+            {isAuthenticated ? 'Open Marketplace' : 'Login / Sign Up'}
+          </Button>
         </div>
       </header>
 
@@ -100,54 +91,50 @@ export function LandingPage({
             <motion.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+              transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
               className="lg:col-span-6"
             >
-              <p className="text-xs font-semibold tracking-wide text-[#C85A32]">
-                All 36 States &amp; FCT · 774 Local Governments
-              </p>
+              <Badge variant="peach">
+                36 States &amp; FCT · Neighborhood Kitchens
+              </Badge>
 
-              <h1 className="font-display mt-3 text-[clamp(2.25rem,4.5vw,3.75rem)] leading-[1.06] font-extrabold tracking-tight text-balance text-[#1E1916]">
-                Real Nigerian food. You get what you order.
+              <h1 className="font-heading mt-4 text-[clamp(2.15rem,4.5vw,3.5rem)] leading-[1.08] font-bold tracking-tight text-balance text-text-primary">
+                Warm homemade meals, straight from local pots.
               </h1>
 
-              <p className="mt-4 max-w-xl text-base leading-relaxed text-[#5C5049] md:text-lg">
-                Browse fresh plates posted straight from neighborhood bukas,
-                grills, and home kitchens near{' '}
-                <span className="font-semibold text-[#1E1916]">{location}</span>
-                —with distance in km and live rider route tracking.
+              <p className="mt-4 max-w-xl text-base leading-relaxed text-text-secondary md:text-lg">
+                Discover fresh Jollof, swallows, suya, and breakfast boxes
+                cooked daily by trusted sellers near{' '}
+                <span className="font-semibold text-text-primary">{location}</span>.
               </p>
 
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                <motion.button
+                <Button
                   type="button"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.16, ease: EASE_OUT_EXPO }}
+                  size="lg"
                   onClick={() => onEnterApp('home')}
-                  className="inline-flex min-h-[50px] items-center gap-2 rounded-full bg-[#D9232E] px-6 text-sm font-bold whitespace-nowrap text-[#FAF6F1] shadow-sm transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
                 >
                   Explore Kitchens Near You
                   <ArrowRight className="h-4 w-4" />
-                </motion.button>
+                </Button>
 
-                <motion.button
+                <Button
                   type="button"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  transition={{ duration: 0.16, ease: EASE_OUT_EXPO }}
-                  onClick={() => onOpenPortal('seller')}
-                  className="inline-flex min-h-[50px] items-center gap-2 rounded-full border border-[#E6DDD3] bg-white px-5 text-sm font-bold whitespace-nowrap text-[#1E1916] transition-colors hover:bg-[#F4E8D6]"
+                  variant="secondary"
+                  size="lg"
+                  onClick={() =>
+                    isAuthenticated ? onEnterApp('post') : onOpenAuth('seller')
+                  }
                 >
-                  <Store className="h-4 w-4 text-[#D9232E]" />
-                  Post Your Kitchen
-                </motion.button>
+                  <Store className="h-4 w-4" />
+                  Post Your Food
+                </Button>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[#5C5049]">
-                <span>Actual seller-snapped photos</span>
+              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-secondary">
+                <span>Real kitchen photos</span>
                 <span aria-hidden="true">·</span>
-                <span>Swipeable mobile + full desktop view</span>
+                <span>Live order status</span>
                 <span aria-hidden="true">·</span>
                 <span>Paystack or Cash on Delivery</span>
               </div>
@@ -157,52 +144,66 @@ export function LandingPage({
               initial={{ opacity: 0, y: 22, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
-                duration: 0.55,
+                duration: 0.45,
                 delay: 0.08,
                 ease: EASE_OUT_EXPO,
               }}
               className="lg:col-span-6"
             >
-              <motion.div
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
-                className="soft-card-shadow relative aspect-[16/10] w-full overflow-hidden rounded-[24px] bg-[#E8D5B7]"
+              <Card
+                padding="none"
+                interactive
+                className="relative overflow-hidden"
               >
-                <PlateImage
-                  src={HERO_FEAST_IMAGE}
-                  alt="Spiced Nigerian rice with charred grilled chicken quarter and sautéed bell peppers"
-                  className="h-full w-full"
-                />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1E1916]/80 via-[#1E1916]/15 to-transparent" />
+                <div className="relative aspect-[16/10] w-full overflow-hidden bg-primary-soft">
+                  <PlateImage
+                    src={HERO_FEAST_IMAGE}
+                    alt="Spiced Nigerian rice with charred grilled chicken quarter and sautéed bell peppers"
+                    className="h-full w-full"
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-text-primary/80 via-text-primary/20 to-transparent" />
+                  <div className="absolute top-4 left-4">
+                    <Badge variant="mango">
+                      <Star className="h-3 w-3 fill-text-primary" />
+                      4.9 · New Batch
+                    </Badge>
+                  </div>
+                </div>
 
-                <div className="absolute right-5 bottom-5 left-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                <div className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-center">
                   <div>
-                    <p className="text-xs font-semibold text-[#F4E8D6]">
+                    <p className="text-xs font-medium text-text-secondary">
                       Mama Put Express · Eti-Osa, Lagos
                     </p>
-                    <p className="font-display text-lg font-extrabold text-white">
-                      Spiced Rice &amp; Charred Grilled Chicken
+                    <p className="font-heading mt-0.5 text-lg font-bold text-text-primary">
+                      Spiced Rice &amp; Charred Chicken
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onEnterApp('menu')}
-                    className="tabular-nums-clean min-h-[40px] shrink-0 self-start rounded-full bg-white px-4 text-xs font-bold whitespace-nowrap text-[#1E1916] shadow-md transition-colors hover:bg-[#F4E8D6] sm:self-auto"
-                  >
-                    View Menu · ₦4,200
-                  </button>
+
+                  <div className="flex items-center justify-between gap-4 sm:justify-end">
+                    <span className="tabular-nums-clean font-heading text-lg font-bold text-primary">
+                      ₦4,200
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onEnterApp('menu')}
+                    >
+                      Order
+                    </Button>
+                  </div>
                 </div>
-              </motion.div>
+              </Card>
             </motion.div>
           </div>
         </section>
 
-        <section className="border-y border-[#E6DDD3] bg-white">
+        <section className="border-y border-border-soft bg-surface">
           <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-4 py-7 md:grid-cols-4 md:px-6 lg:px-8">
             {[
               { value: '36 + FCT', label: 'Nigerian States covered' },
-              { value: '774 LGAs', label: 'Local area distance matching' },
-              { value: '100% Real', label: 'Kitchen-snapped plate photos' },
+              { value: '774 LGAs', label: 'Local distance matching' },
+              { value: '100% Real', label: 'Seller-snapped plate photos' },
               { value: '15–30 min', label: 'Average local delivery ETA' },
             ].map((stat, idx) => (
               <motion.div
@@ -211,15 +212,15 @@ export function LandingPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{
-                  duration: 0.35,
-                  delay: idx * 0.06,
+                  duration: 0.3,
+                  delay: idx * 0.05,
                   ease: EASE_OUT_EXPO,
                 }}
               >
-                <p className="font-display tabular-nums-clean text-2xl font-extrabold tracking-tight text-[#1E1916]">
+                <p className="font-heading tabular-nums-clean text-2xl font-bold tracking-tight text-primary">
                   {stat.value}
                 </p>
-                <p className="mt-1 text-xs font-medium text-[#5C5049]">
+                <p className="mt-1 text-xs font-medium text-text-secondary">
                   {stat.label}
                 </p>
               </motion.div>
@@ -231,94 +232,99 @@ export function LandingPage({
           id="plates"
           className="mx-auto max-w-6xl px-4 py-14 md:px-6 lg:px-8 lg:py-16"
         >
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-            className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
-          >
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-              <p className="text-xs font-semibold text-[#C85A32]">
+              <p className="text-xs font-semibold text-primary">
                 Fresh from nearby kitchens
               </p>
-              <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#1E1916] md:text-3xl">
-                Popular local plates ready right now
+              <h2 className="font-heading mt-1 text-2xl font-bold tracking-tight text-text-primary md:text-3xl">
+                Popular plates ready right now
               </h2>
             </div>
 
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => onEnterApp('home')}
-              className="inline-flex min-h-[42px] shrink-0 items-center gap-1.5 self-start text-sm font-bold whitespace-nowrap text-[#D9232E] transition-colors hover:text-[#9E141D] sm:self-auto"
             >
               See all kitchens
               <ArrowRight className="h-4 w-4" />
-            </button>
-          </motion.div>
+            </Button>
+          </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {featuredKitchens.map((kitchen, idx) => {
               const dist = getDistanceToRestaurant(location, kitchen);
               const leadItem = kitchen.menu[0];
 
               return (
-                <motion.article
+                <motion.div
                   key={kitchen.id}
-                  initial={{ opacity: 0, y: 18 }}
+                  initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.15 }}
                   transition={{
-                    duration: 0.38,
-                    delay: idx * 0.06,
+                    duration: 0.3,
+                    delay: idx * 0.05,
                     ease: EASE_OUT_EXPO,
                   }}
-                  whileHover={{ y: -4 }}
-                  whileTap={{ scale: 0.99 }}
-                  className="soft-card-shadow flex flex-col overflow-hidden rounded-[22px] bg-white"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelectRestaurant(kitchen)}
-                    className="flex flex-1 flex-col text-left focus:outline-none"
+                  <Card
+                    padding="none"
+                    interactive
+                    className="flex h-full flex-col overflow-hidden"
                   >
-                    <div className="relative h-44 w-full overflow-hidden bg-[#F4E8D6]">
+                    <button
+                      type="button"
+                      onClick={() => onSelectRestaurant(kitchen)}
+                      className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden bg-primary-soft text-left"
+                    >
                       <PlateImage
                         src={kitchen.heroImageUrl}
-                        alt={kitchen.name}
-                        className="h-full w-full transition-transform duration-300 hover:scale-105"
+                        alt={leadItem ? leadItem.name : kitchen.name}
+                        className="h-full w-full transition-transform duration-200 hover:scale-105"
                       />
-                    </div>
+                      <div className="absolute top-3 left-3">
+                        <Badge variant="mango">
+                          <Star className="h-3 w-3 fill-text-primary" />
+                          {kitchen.rating.toFixed(1)}
+                        </Badge>
+                      </div>
+                    </button>
 
                     <div className="flex flex-1 flex-col justify-between p-4">
                       <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-display truncate text-base font-bold text-[#1E1916]">
-                            {kitchen.name}
-                          </h3>
-                          <span className="tabular-nums-clean inline-flex shrink-0 items-center gap-1 text-xs font-bold text-[#1E1916]">
-                            <Star className="h-3.5 w-3.5 fill-[#D99B26] text-[#D99B26]" />
-                            {kitchen.rating.toFixed(1)}
-                          </span>
-                        </div>
-
-                        <p className="mt-1 truncate text-xs text-[#5C5049]">
-                          {leadItem ? leadItem.name : kitchen.cuisineTags[0]}
+                        <h3 className="font-heading truncate text-base font-bold text-text-primary">
+                          {leadItem ? leadItem.name : kitchen.name}
+                        </h3>
+                        <p className="mt-0.5 truncate text-xs font-medium text-text-secondary">
+                          {kitchen.name} · {dist} km
                         </p>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between border-t border-[#E6DDD3] pt-3 text-xs">
-                        <span className="tabular-nums-clean flex items-center gap-1 font-medium text-[#5C5049]">
-                          <Clock className="h-3.5 w-3.5 text-[#D9232E]" />
-                          {kitchen.deliveryMinutes} · {dist} km
-                        </span>
-                        <span className="tabular-nums-clean font-extrabold text-[#1E1916]">
-                          {leadItem ? formatNaira(leadItem.price) : 'Menu'}
-                        </span>
+                      <div className="mt-4 flex items-center justify-between gap-2 border-t border-border-soft pt-3">
+                        <div>
+                          <p className="tabular-nums-clean font-heading text-base font-bold text-primary">
+                            {leadItem ? formatNaira(leadItem.price) : 'Menu'}
+                          </p>
+                          <p className="inline-flex items-center gap-1 text-[11px] text-text-secondary">
+                            <Clock className="h-3 w-3 text-primary" />
+                            {kitchen.deliveryMinutes}
+                          </p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => onSelectRestaurant(kitchen)}
+                        >
+                          Order
+                        </Button>
                       </div>
                     </div>
-                  </button>
-                </motion.article>
+                  </Card>
+                </motion.div>
               );
             })}
           </div>
@@ -328,79 +334,57 @@ export function LandingPage({
           id="how-it-works"
           className="mx-auto max-w-6xl px-4 pb-14 md:px-6 lg:px-8 lg:pb-16"
         >
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-          >
-            <p className="text-xs font-semibold text-[#C85A32]">
-              Built for buyers and local kitchens
+          <div>
+            <p className="text-xs font-semibold text-primary">
+              Simple for buyers &amp; local cooks
             </p>
-            <h2 className="font-display mt-1 text-2xl font-extrabold tracking-tight text-[#1E1916] md:text-3xl">
-              From local pot to your gate in three steps
+            <h2 className="font-heading mt-1 text-2xl font-bold tracking-tight text-text-primary md:text-3xl">
+              From neighborhood kitchen to your table
             </h2>
-          </motion.div>
+          </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-12">
+          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
             {[
               {
                 num: '01',
-                title: 'Pick your State & Local Government',
-                body: 'Search any of Nigeria’s 36 States, FCT Abuja, and 774 LGAs—or tap GPS to automatically match kitchens closest to you.',
+                title: 'Pick your Nigerian LGA',
+                body: 'Match with neighborhood cooks and bukas across all 36 States, FCT Abuja, and 774 LGAs.',
                 icon: Compass,
-                span: 'lg:col-span-5',
-                action: () => onOpenPortal('buyer'),
-                cta: 'Set Buyer Location',
+                action: () => onEnterApp('home'),
+                cta: 'Browse Feed',
               },
               {
                 num: '02',
-                title: 'Order exact plates posted by sellers',
-                body: 'Sellers upload real food photos and Naira prices straight from their kitchen. Zero stock-photo guesswork.',
+                title: 'See exact seller photos',
+                body: 'Every dish card shows real food photos, transparent Naira pricing, and Mango star ratings.',
                 icon: ShieldCheck,
-                span: 'lg:col-span-4',
                 action: () => onEnterApp('menu'),
-                cta: 'Browse Live Menu',
+                cta: 'Open Menu',
               },
               {
                 num: '03',
-                title: 'Track the kitchen & rider route',
-                body: 'Swipe or click into the live map to see kitchen location, rider ETA, and call or message on arrival.',
+                title: 'Track live order status',
+                body: 'Follow your plate from Pending to Accepted to Delivered with direct rider chat and call.',
                 icon: Bike,
-                span: 'lg:col-span-3',
-                action: () => onEnterApp('tracking'),
-                cta: 'View Live Map',
+                action: () => onEnterApp('orders'),
+                cta: 'Track Order',
               },
-            ].map((step, idx) => {
+            ].map((step) => {
               const Icon = step.icon;
               return (
-                <motion.div
-                  key={step.num}
-                  initial={{ opacity: 0, y: 18 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  transition={{
-                    duration: 0.38,
-                    delay: idx * 0.08,
-                    ease: EASE_OUT_EXPO,
-                  }}
-                  whileHover={{ y: -3 }}
-                  className={`flex flex-col justify-between rounded-[24px] border border-[#E6DDD3] bg-white p-6 ${step.span}`}
-                >
+                <Card key={step.num} padding="lg" interactive className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="font-display tabular-nums-clean text-sm font-extrabold text-[#D9232E]">
-                        {step.num}.
-                      </span>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F4E8D6] text-[#1E1916]">
+                      <Badge variant="peach">{step.num}</Badge>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-primary">
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
 
-                    <h3 className="font-display mt-5 text-lg font-bold text-[#1E1916]">
+                    <h3 className="font-heading mt-5 text-lg font-bold text-text-primary">
                       {step.title}
                     </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[#5C5049]">
+                    <p className="mt-2 text-sm leading-relaxed text-text-secondary">
                       {step.body}
                     </p>
                   </div>
@@ -408,136 +392,99 @@ export function LandingPage({
                   <button
                     type="button"
                     onClick={step.action}
-                    className="mt-6 inline-flex min-h-[40px] items-center gap-1.5 self-start text-xs font-bold text-[#D9232E] transition-colors hover:text-[#9E141D]"
+                    className="mt-6 inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 self-start text-xs font-semibold text-primary transition-colors hover:text-primary-dark"
                   >
                     {step.cta}
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
-                </motion.div>
+                </Card>
               );
             })}
           </div>
         </section>
 
-        <section
-          id="coverage"
-          className="mx-auto max-w-6xl px-4 pb-16 md:px-6 lg:px-8"
-        >
-          <motion.div
-            id="sellers"
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
-            className="relative overflow-hidden rounded-[28px] bg-[#D9232E] p-7 text-[#FAF6F1] md:p-10"
-          >
-            <svg
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <defs>
-                <pattern
-                  id="landing-aso-oke"
-                  width="32"
-                  height="32"
-                  patternUnits="userSpaceOnUse"
-                >
-                  <path
-                    d="M0 16 L16 0 L32 16 L16 32 Z M8 16 L16 8 L24 16 L16 24 Z"
-                    fill="none"
-                    stroke="#FAF6F1"
-                    strokeWidth="1.2"
-                  />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#landing-aso-oke)" />
-            </svg>
-
+        <section id="sellers" className="mx-auto max-w-6xl px-4 pb-16 md:px-6 lg:px-8">
+          <div className="coral-glow-shadow relative overflow-hidden rounded-[16px] bg-primary p-7 text-white md:p-10">
             <div className="relative z-10 grid grid-cols-1 items-center gap-8 lg:grid-cols-12">
               <div className="lg:col-span-7">
-                <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#F4E8D6]">
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-soft">
                   <MapPin className="h-3.5 w-3.5" />
-                  Nationwide Nigerian Directory
+                  Built for Nigerian Neighborhood Kitchens
                 </p>
-                <h2 className="font-display mt-2 text-2xl leading-tight font-extrabold text-balance text-white md:text-4xl">
-                  Ready to eat—or ready to sell your pots across Nigeria?
+                <h2 className="font-heading mt-2 text-2xl leading-tight font-bold text-balance text-white md:text-4xl">
+                  Ready to eat or share what&apos;s cooking in your pot today?
                 </h2>
-                <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#FAF6F1]/90 md:text-base">
-                  Whether you are ordering smoky Jollof in Lekki, Wuse 2,
-                  Ibadan, Port Harcourt, or Kano—or publishing fresh plates from
-                  your own kitchen—ChopBellyFull connects buyers and sellers in
-                  seconds.
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/95 md:text-base">
+                  Snap a plate, set your Naira price, and connect with hungry
+                  neighbors in seconds.
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row lg:col-span-5 lg:justify-end">
-                <motion.button
+                <button
                   type="button"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
                   onClick={() => onEnterApp('home')}
-                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#FAF6F1] px-6 text-sm font-bold whitespace-nowrap text-[#1E1916] shadow-md transition-colors hover:bg-[#F4E8D6]"
+                  className="inline-flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-full bg-surface px-6 text-sm font-semibold whitespace-nowrap text-primary shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-soft"
                 >
-                  <Navigation className="h-4 w-4 text-[#D9232E]" />
                   Start Ordering
-                </motion.button>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
 
-                <motion.button
+                <button
                   type="button"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => onOpenPortal('seller')}
-                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#9E141D] px-6 text-sm font-bold whitespace-nowrap text-[#FAF6F1] ring-1 ring-[#FAF6F1]/30 transition-colors hover:bg-[#1E1916]"
+                  onClick={() =>
+                    isAuthenticated ? onEnterApp('post') : onOpenAuth('seller')
+                  }
+                  className="inline-flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-full border border-white/60 bg-primary-dark px-6 text-sm font-semibold whitespace-nowrap text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-text-primary"
                 >
                   <ChefHat className="h-4 w-4" />
-                  Seller Login
-                </motion.button>
+                  Post Food
+                </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         </section>
       </main>
 
-      <footer className="border-t border-[#E6DDD3] bg-white">
+      <footer className="border-t border-border-soft bg-surface">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-8 md:flex-row md:items-center md:px-6 lg:px-8">
           <div>
-            <p className="font-display text-lg font-extrabold text-[#1E1916]">
-              ChopBellyFull
+            <p className="font-heading text-lg font-bold text-text-primary">
+              Chop<span className="text-primary">BellyFull</span>
             </p>
-            <p className="text-xs text-[#5C5049]">
-              You get what you order · All 36 Nigerian States &amp; FCT
+            <p className="text-xs text-text-secondary">
+              Warm homemade meals across all 36 Nigerian States &amp; FCT
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-5 text-xs font-semibold text-[#5C5049]">
+          <div className="flex flex-wrap items-center gap-5 text-xs font-semibold text-text-secondary">
             <button
               type="button"
               onClick={() => onEnterApp('home')}
-              className="hover:text-[#1E1916]"
+              className="cursor-pointer transition-colors hover:text-primary"
             >
-              Home Discovery
+              Home Feed
             </button>
             <button
               type="button"
-              onClick={() => onEnterApp('menu')}
-              className="hover:text-[#1E1916]"
+              onClick={() => onEnterApp('post')}
+              className="cursor-pointer transition-colors hover:text-primary"
             >
-              Menus &amp; Tray
+              Post Food
             </button>
             <button
               type="button"
-              onClick={() => onEnterApp('tracking')}
-              className="hover:text-[#1E1916]"
+              onClick={() => onEnterApp('orders')}
+              className="cursor-pointer transition-colors hover:text-primary"
             >
-              Live Tracking
+              Orders
             </button>
             <button
               type="button"
-              onClick={() => onOpenPortal('buyer')}
-              className="text-[#D9232E] hover:text-[#9E141D]"
+              onClick={() => onEnterApp('profile')}
+              className="cursor-pointer text-primary transition-colors hover:text-primary-dark"
             >
-              Buyer / Seller Portal
+              Profile
             </button>
           </div>
         </div>

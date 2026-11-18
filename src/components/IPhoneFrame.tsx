@@ -23,30 +23,30 @@ export function IPhoneFrame({
     <div className="flex flex-col items-center">
       {title && (
         <div className="mb-3 text-center">
-          <p className="font-display text-sm font-bold text-[#1E1916]">
+          <p className="font-heading text-sm font-bold text-text-primary">
             {title}
           </p>
           {subtitle && (
-            <p className="mt-0.5 text-xs text-[#635850]">{subtitle}</p>
+            <p className="mt-0.5 text-xs text-text-secondary">{subtitle}</p>
           )}
         </div>
       )}
 
       <div
-        className={`relative w-full max-w-[375px] rounded-[46px] bg-[#1E1916] p-[11px] transition-shadow duration-200 ${
+        className={`relative w-full max-w-[375px] rounded-[46px] bg-text-primary p-[11px] transition-shadow duration-200 ${
           isHighlighted
-            ? 'shadow-[0_24px_60px_-14px_rgba(217,35,46,0.22)]'
-            : 'shadow-[0_24px_60px_-16px_rgba(30,25,22,0.20)]'
+            ? 'shadow-[0_24px_60px_-14px_rgba(255,111,97,0.28)]'
+            : 'shadow-[0_24px_60px_-16px_rgba(43,43,43,0.20)]'
         }`}
       >
-        <div className="relative flex h-[760px] w-full flex-col overflow-hidden rounded-[36px] bg-[#FAF6F1]">
+        <div className="relative flex h-[760px] w-full flex-col overflow-hidden rounded-[36px] bg-bg">
           <div
             className={`z-30 flex h-11 shrink-0 items-center justify-between px-6 pt-1 transition-colors duration-200 ${
               overlayStatusBar
                 ? `pointer-events-none absolute top-0 right-0 left-0 ${
-                    resolvedTone === 'light' ? 'text-white' : 'text-[#1E1916]'
+                    resolvedTone === 'light' ? 'text-white' : 'text-text-primary'
                   }`
-                : 'bg-transparent text-[#1E1916]'
+                : 'bg-transparent text-text-primary'
             }`}
           >
             <span className="tabular-nums-clean text-[13px] font-semibold tracking-tight">
@@ -55,7 +55,7 @@ export function IPhoneFrame({
 
             <div
               aria-hidden="true"
-              className="h-[24px] w-[92px] rounded-full bg-[#1E1916]"
+              className="h-[24px] w-[92px] rounded-full bg-text-primary"
             />
 
             <div className="flex items-center gap-1.5" aria-hidden="true">
@@ -77,7 +77,7 @@ export function IPhoneFrame({
             aria-hidden="true"
             className="pointer-events-none absolute right-0 bottom-1.5 left-0 z-40 flex justify-center"
           >
-            <div className="h-1 w-28 rounded-full bg-[#1E1916]/20" />
+            <div className="h-1 w-28 rounded-full bg-text-primary/20" />
           </div>
         </div>
       </div>

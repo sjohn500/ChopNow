@@ -117,7 +117,7 @@ export function SwipeableScreenDeck({
           className={`flex h-full ${
             isDragging
               ? ''
-              : 'transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]'
+              : 'transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]'
           }`}
         >
           {screens.map((screen) => (
@@ -132,7 +132,7 @@ export function SwipeableScreenDeck({
         </div>
       </div>
 
-      <div className="z-30 flex items-center justify-between border-t border-[#E6DDD3] bg-white/95 px-4 pt-2 pb-5 backdrop-blur-md">
+      <div className="z-30 flex items-center justify-between border-t border-border-soft bg-surface/95 px-3 pt-2 pb-4 backdrop-blur-md">
         <button
           type="button"
           disabled={activeIndex === 0}
@@ -140,12 +140,12 @@ export function SwipeableScreenDeck({
             activeIndex > 0 && onChangeScreen(screens[activeIndex - 1].id)
           }
           aria-label="Previous screen"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4E8D6] text-[#1E1916] transition-colors active:bg-[#E8D5B7] disabled:opacity-30"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-text-primary transition-colors active:bg-primary/20 disabled:opacity-30"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        <div className="flex items-center gap-1.5">
+        <div className="no-scrollbar flex items-center gap-1 overflow-x-auto px-1">
           {screens.map((s, idx) => {
             const isCurrent = idx === activeIndex;
             return (
@@ -153,13 +153,13 @@ export function SwipeableScreenDeck({
                 key={s.id}
                 type="button"
                 onClick={() => onChangeScreen(s.id)}
-                className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors ${
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${
                   isCurrent
-                    ? 'bg-[#D9232E] text-white'
-                    : 'bg-[#F4E8D6]/80 text-[#5C5049] hover:text-[#1E1916]'
+                    ? 'bg-primary text-white'
+                    : 'bg-primary-soft/60 text-text-secondary hover:text-text-primary'
                 }`}
               >
-                {idx + 1}. {s.label}
+                {s.label}
               </button>
             );
           })}
@@ -173,7 +173,7 @@ export function SwipeableScreenDeck({
             onChangeScreen(screens[activeIndex + 1].id)
           }
           aria-label="Next screen"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4E8D6] text-[#1E1916] transition-colors active:bg-[#E8D5B7] disabled:opacity-30"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-text-primary transition-colors active:bg-primary/20 disabled:opacity-30"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

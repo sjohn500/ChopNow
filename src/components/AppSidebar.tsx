@@ -1,5 +1,6 @@
 import {
-  Bike,
+  Camera,
+  ClipboardList,
   Columns3,
   Flame,
   Home,
@@ -15,8 +16,8 @@ import {
   X,
 } from 'lucide-react';
 import { AuthUser, ScreenId } from '../types/delivery';
-import { AccountPortalTab } from './AccountPortalModal';
 import { PlateImage } from './PlateImage';
+import { Badge } from './ui';
 
 export type AppViewMode = 'responsive' | 'phone' | 'grid';
 
@@ -25,10 +26,10 @@ interface SidebarContentProps {
   location: string;
   activeScreen: ScreenId;
   viewMode: AppViewMode;
+  activeOrderCount: number;
   onSelectScreen: (screen: ScreenId) => void;
   onChangeViewMode: (mode: AppViewMode) => void;
   onFilterLocalFood: () => void;
-  onOpenPortal: (tab: AccountPortalTab) => void;
   onOpenLanding?: () => void;
   onLogout?: () => void;
   onResetDemo: () => void;
@@ -41,10 +42,10 @@ export function SidebarContent({
   location,
   activeScreen,
   viewMode,
+  activeOrderCount,
   onSelectScreen,
   onChangeViewMode,
   onFilterLocalFood,
-  onOpenPortal,
   onOpenLanding,
   onLogout,
   onResetDemo,
@@ -56,30 +57,44 @@ export function SidebarContent({
     label: string;
     hint: string;
     icon: typeof Home;
+    badge?: number;
   }[] = [
     {
       id: 'home',
-      label: 'Home Discovery',
-      hint: 'Browse local kitchens',
+      label: 'Home Feed',
+      hint: 'Search & local dishes',
       icon: Home,
     },
     {
       id: 'menu',
-      label: 'Restaurant & Menu',
-      hint: 'Dishes, local pots & tray',
+      label: 'Kitchen & Tray',
+      hint: 'Browse dishes & order',
       icon: UtensilsCrossed,
     },
     {
-      id: 'tracking',
-      label: 'Live Order Tracking',
-      hint: 'Map, ETA & rider chat',
-      icon: Bike,
+      id: 'post',
+      label: 'Post Food',
+      hint: 'Share a plate for sale',
+      icon: Camera,
+    },
+    {
+      id: 'orders',
+      label: 'Orders',
+      hint: 'Status & live map',
+      icon: ClipboardList,
+      badge: activeOrderCount,
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      hint: 'My posts, orders & info',
+      icon: User,
     },
   ];
 
   return (
-    <div className="flex h-full flex-col justify-between bg-white p-5">
-      <div className="space-y-6">
+    <div className="flex h-full flex-col justify-between bg-surface p-5">
+      <div className="space-y-5 overflow-y-auto no-scrollbar">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -87,13 +102,13 @@ export function SidebarContent({
               onOpenLanding?.();
               onClose?.();
             }}
-            className="text-left focus:outline-none"
+            className="cursor-pointer text-left focus:outline-none"
           >
-            <span className="font-display text-xl font-extrabold tracking-tight text-[#1E1916]">
-              ChopBellyFull
+            <span className="font-heading text-xl font-bold tracking-tight text-text-primary">
+              Chop<span className="text-primary">BellyFull</span>
             </span>
-            <p className="text-[11px] font-medium text-[#5C5049]">
-              You get what you order.
+            <p className="text-xs font-medium text-text-secondary">
+              Warm plates near you.
             </p>
           </button>
           {isMobileDrawer && onClose && (
@@ -101,17 +116,17 @@ export function SidebarContent({
               type="button"
               onClick={onClose}
               aria-label="Close sidebar"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-bg text-text-primary transition-colors hover:bg-primary-soft"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        <div className="rounded-2xl bg-[#F4E8D6]/80 p-3.5">
+        <div className="rounded-[16px] bg-primary-soft/55 p-3.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[#D9232E]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface text-primary">
                 {user.avatarUrl ? (
                   <PlateImage
                     src={user.avatarUrl}
@@ -125,11 +140,11 @@ export function SidebarContent({
                 )}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#1E1916]">
+                <p className="truncate text-sm font-bold text-text-primary">
                   {user.name}
                 </p>
-                <p className="truncate text-[11px] font-semibold text-[#D9232E]">
-                  {user.role === 'seller' ? 'Seller Account' : 'Buyer Account'}
+                <p className="truncate text-xs font-semibold text-primary">
+                  {user.role === 'seller' ? 'Local Seller' : 'Buyer'}
                 </p>
               </div>
             </div>
@@ -137,25 +152,25 @@ export function SidebarContent({
             <button
               type="button"
               onClick={() => {
+                onSelectScreen('profile');
                 onClose?.();
-                onOpenPortal('profile');
               }}
               aria-label="Edit profile"
-              className="inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-full bg-white px-2.5 text-[11px] font-bold text-[#1E1916] shadow-xs transition-colors hover:bg-[#FAF6F1]"
+              className="inline-flex min-h-[34px] shrink-0 cursor-pointer items-center gap-1 rounded-full bg-surface px-2.5 text-xs font-semibold text-text-primary shadow-xs transition-colors hover:bg-bg"
             >
-              <Pencil className="h-3 w-3 text-[#D9232E]" />
+              <Pencil className="h-3 w-3 text-primary" />
               Edit
             </button>
           </div>
-          <p className="mt-2 flex items-center gap-1 truncate text-[11px] text-[#5C5049]">
-            <MapPin className="h-3 w-3 shrink-0 text-[#D9232E]" />
+          <p className="mt-2 flex items-center gap-1 truncate text-xs text-text-secondary">
+            <MapPin className="h-3 w-3 shrink-0 text-primary" />
             <span className="truncate">{location}</span>
           </p>
         </div>
 
-        <nav aria-label="Sidebar navigation" className="space-y-1.5">
-          <p className="px-2 text-[11px] font-semibold text-[#5C5049]">
-            Screens
+        <nav aria-label="Sidebar navigation" className="space-y-1">
+          <p className="px-2 pb-1 text-xs font-semibold text-text-secondary">
+            Explore
           </p>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -168,27 +183,34 @@ export function SidebarContent({
                   onSelectScreen(item.id);
                   onClose?.();
                 }}
-                className={`flex min-h-[46px] w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition-colors ${
+                className={`flex min-h-[46px] w-full cursor-pointer items-center justify-between gap-2 rounded-[14px] px-3 py-2 text-left transition-all duration-150 ${
                   isActive
-                    ? 'bg-[#F4E8D6] text-[#D9232E]'
-                    : 'text-[#1E1916] hover:bg-[#FAF6F1]'
+                    ? 'bg-primary-soft text-primary'
+                    : 'text-text-primary hover:bg-bg'
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{item.label}</p>
-                  <p className="truncate text-[11px] text-[#5C5049]">
-                    {item.hint}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">
+                      {item.label}
+                    </p>
+                    <p className="truncate text-xs text-text-secondary">
+                      {item.hint}
+                    </p>
+                  </div>
                 </div>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <Badge variant="coral">{item.badge}</Badge>
+                )}
               </button>
             );
           })}
         </nav>
 
-        <div className="space-y-1.5">
-          <p className="px-2 text-[11px] font-semibold text-[#5C5049]">
-            Quick Actions
+        <div className="space-y-1">
+          <p className="px-2 pb-1 text-xs font-semibold text-text-secondary">
+            Quick Cravings
           </p>
           <button
             type="button"
@@ -196,50 +218,39 @@ export function SidebarContent({
               onFilterLocalFood();
               onClose?.();
             }}
-            className="flex min-h-[44px] w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold text-[#1E1916] hover:bg-[#FAF6F1]"
+            className="flex min-h-[42px] w-full cursor-pointer items-center gap-3 rounded-[14px] px-3 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-bg"
           >
-            <Flame className="h-4 w-4 text-[#D9232E]" />
-            <span>Jollof &amp; Swallows</span>
+            <Flame className="h-4 w-4 text-primary" />
+            <span>Rice &amp; Jollof Plates</span>
           </button>
           <button
             type="button"
             onClick={() => {
+              onSelectScreen('post');
               onClose?.();
-              onOpenPortal('buyer');
             }}
-            className="flex min-h-[44px] w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold text-[#1E1916] hover:bg-[#FAF6F1]"
+            className="flex min-h-[42px] w-full cursor-pointer items-center gap-3 rounded-[14px] px-3 text-left text-sm font-semibold text-text-primary transition-colors hover:bg-bg"
           >
-            <User className="h-4 w-4 text-[#5C5049]" />
-            <span>Buyer Sign In &amp; GPS</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onClose?.();
-              onOpenPortal('seller');
-            }}
-            className="flex min-h-[44px] w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-semibold text-[#1E1916] hover:bg-[#FAF6F1]"
-          >
-            <Store className="h-4 w-4 text-[#D9232E]" />
-            <span>Seller Login &amp; Post</span>
+            <Store className="h-4 w-4 text-primary" />
+            <span>Post Fresh Food</span>
           </button>
         </div>
       </div>
 
-      <div className="space-y-2 border-t border-[#E6DDD3] pt-4">
+      <div className="space-y-2 border-t border-border-soft pt-4">
         {!isMobileDrawer && (
           <div>
-            <p className="mb-1.5 px-1 text-[10px] font-semibold text-[#5C5049]">
-              Display Layout
+            <p className="mb-1.5 px-1 text-xs font-semibold text-text-secondary">
+              View Mode
             </p>
-            <div className="grid grid-cols-3 gap-1 rounded-xl bg-[#FAF6F1] p-1">
+            <div className="grid grid-cols-3 gap-1 rounded-[12px] bg-bg p-1">
               <button
                 type="button"
                 onClick={() => onChangeViewMode('responsive')}
-                className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-semibold ${
+                className={`flex min-h-[34px] cursor-pointer items-center justify-center gap-1 rounded-[10px] text-xs font-semibold transition-colors ${
                   viewMode === 'responsive'
-                    ? 'bg-white text-[#D9232E] shadow-xs'
-                    : 'text-[#5C5049]'
+                    ? 'bg-surface text-primary shadow-xs'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <LayoutGrid className="h-3 w-3" />
@@ -248,10 +259,10 @@ export function SidebarContent({
               <button
                 type="button"
                 onClick={() => onChangeViewMode('phone')}
-                className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-semibold ${
+                className={`flex min-h-[34px] cursor-pointer items-center justify-center gap-1 rounded-[10px] text-xs font-semibold transition-colors ${
                   viewMode === 'phone'
-                    ? 'bg-white text-[#D9232E] shadow-xs'
-                    : 'text-[#5C5049]'
+                    ? 'bg-surface text-primary shadow-xs'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <Smartphone className="h-3 w-3" />
@@ -260,10 +271,10 @@ export function SidebarContent({
               <button
                 type="button"
                 onClick={() => onChangeViewMode('grid')}
-                className={`flex min-h-[34px] items-center justify-center gap-1 rounded-lg text-[11px] font-semibold ${
+                className={`flex min-h-[34px] cursor-pointer items-center justify-center gap-1 rounded-[10px] text-xs font-semibold transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-white text-[#D9232E] shadow-xs'
-                    : 'text-[#5C5049]'
+                    ? 'bg-surface text-primary shadow-xs'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <Columns3 className="h-3 w-3" />
@@ -281,7 +292,7 @@ export function SidebarContent({
                 onOpenLanding();
                 onClose?.();
               }}
-              className="flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-[#E6DDD3] bg-white text-xs font-semibold text-[#1E1916] hover:bg-[#FAF6F1]"
+              className="flex min-h-[40px] flex-1 cursor-pointer items-center justify-center rounded-full border border-border-soft bg-surface text-xs font-semibold text-text-primary transition-colors hover:bg-bg"
             >
               Landing
             </button>
@@ -292,7 +303,7 @@ export function SidebarContent({
               onResetDemo();
               onClose?.();
             }}
-            className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FAF6F1] text-xs font-semibold text-[#5C5049] hover:text-[#1E1916]"
+            className="flex min-h-[40px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full bg-bg text-xs font-semibold text-text-secondary transition-colors hover:text-text-primary"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Reset
@@ -306,7 +317,7 @@ export function SidebarContent({
               onLogout();
               onClose?.();
             }}
-            className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#F4E8D6]/70 text-xs font-bold text-[#9E141D] hover:bg-[#F4E8D6]"
+            className="flex min-h-[40px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-full bg-primary-soft/65 text-xs font-bold text-error transition-colors hover:bg-primary-soft"
           >
             <LogOut className="h-3.5 w-3.5" />
             Sign Out

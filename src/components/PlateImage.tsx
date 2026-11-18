@@ -13,12 +13,12 @@ export function PlateImage({ src, alt, className = '' }: PlateImageProps) {
   if (!src || hasError) {
     return (
       <div
-        className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#F3E7D3] to-[#E8D5B7] px-4 text-center text-[#635850] ${className}`}
+        className={`flex flex-col items-center justify-center bg-primary-soft px-4 text-center text-text-secondary ${className}`}
         role="img"
         aria-label={alt}
       >
-        <UtensilsCrossed className="mb-2 h-7 w-7 text-[#9E141D]" />
-        <span className="line-clamp-2 text-xs font-medium text-[#1E1916]">
+        <UtensilsCrossed className="mb-2 h-7 w-7 text-primary" />
+        <span className="line-clamp-2 text-xs font-medium text-text-primary">
           {alt}
         </span>
       </div>

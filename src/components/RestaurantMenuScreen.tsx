@@ -10,6 +10,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { formatNaira, getDistanceToRestaurant } from '../data/deliveryData';
 import { AuthUser, CartEntry, MenuItem, Restaurant } from '../types/delivery';
@@ -352,7 +353,19 @@ export function RestaurantMenuScreen({
                     >
                       {tab}
                       {isActive && (
-                        <span className="absolute right-0 bottom-0 left-0 h-[2.5px] rounded-full bg-[#D9232E]" />
+                        <motion.span
+                          layoutId={
+                            isResponsive
+                              ? 'menuTabUnderlineResponsive'
+                              : 'menuTabUnderlineFrame'
+                          }
+                          transition={{
+                            type: 'spring',
+                            stiffness: 420,
+                            damping: 32,
+                          }}
+                          className="absolute right-0 bottom-0 left-0 h-[2.5px] rounded-full bg-[#D9232E]"
+                        />
                       )}
                     </button>
                   );
@@ -474,26 +487,33 @@ export function RestaurantMenuScreen({
         </div>
       </div>
 
-      {totalItems > 0 && (
-        <div
-          className={`absolute right-4 bottom-5 left-4 z-20 ${
-            isResponsive ? 'lg:hidden' : ''
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => setIsCartOpen(true)}
-            className="floating-bar-shadow tabular-nums-clean mx-auto flex min-h-[52px] w-full max-w-md items-center justify-between rounded-[18px] bg-[#D9232E] px-4 text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+      <AnimatePresence>
+        {totalItems > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className={`absolute right-4 bottom-5 left-4 z-20 ${
+              isResponsive ? 'lg:hidden' : ''
+            }`}
           >
-            <span className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4" />
-              View Your Tray ({totalItems}{' '}
-              {totalItems === 1 ? 'item' : 'items'})
-            </span>
-            <span>• {formatNaira(subtotal)}</span>
-          </button>
-        </div>
-      )}
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsCartOpen(true)}
+              className="floating-bar-shadow tabular-nums-clean mx-auto flex min-h-[52px] w-full max-w-md items-center justify-between rounded-[18px] bg-[#D9232E] px-4 text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+            >
+              <span className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                View Your Tray ({totalItems}{' '}
+                {totalItems === 1 ? 'item' : 'items'})
+              </span>
+              <span>• {formatNaira(subtotal)}</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isCartOpen && (
         <div

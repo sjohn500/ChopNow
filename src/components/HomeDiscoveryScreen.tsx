@@ -14,6 +14,7 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useMemo, useRef, useState } from 'react';
 import {
   DELIVERY_LOCATIONS,
@@ -425,14 +426,23 @@ export function HomeDiscoveryScreen({
                 </p>
               </div>
             ) : (
-              filteredRestaurants.map(({ restaurant, distanceKm }) => {
+              filteredRestaurants.map(({ restaurant, distanceKm }, index) => {
                 const isSelected = restaurant.id === selectedRestaurantId;
                 return (
-                  <button
+                  <motion.button
                     key={restaurant.id}
                     type="button"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.28,
+                      delay: Math.min(index * 0.05, 0.25),
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                    whileHover={{ y: -3 }}
+                    whileTap={{ scale: 0.99 }}
                     onClick={() => onSelectRestaurant(restaurant)}
-                    className={`soft-card-shadow group block w-full overflow-hidden rounded-[20px] bg-white text-left transition-transform active:scale-[0.99] ${
+                    className={`soft-card-shadow group block w-full overflow-hidden rounded-[20px] bg-white text-left ${
                       isSelected ? 'ring-2 ring-[#D9232E]/40' : ''
                     }`}
                   >
@@ -495,7 +505,7 @@ export function HomeDiscoveryScreen({
                         </span>
                       </div>
                     </div>
-                  </button>
+                  </motion.button>
                 );
               })
             )}

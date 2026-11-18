@@ -25,6 +25,7 @@ interface SidebarContentProps {
   onChangeViewMode: (mode: AppViewMode) => void;
   onFilterLocalFood: () => void;
   onOpenPortal: (tab: 'buyer' | 'seller') => void;
+  onOpenLanding?: () => void;
   onResetDemo: () => void;
   onClose?: () => void;
   isMobileDrawer?: boolean;
@@ -39,6 +40,7 @@ export function SidebarContent({
   onChangeViewMode,
   onFilterLocalFood,
   onOpenPortal,
+  onOpenLanding,
   onResetDemo,
   onClose,
   isMobileDrawer = false,
@@ -73,14 +75,21 @@ export function SidebarContent({
     <div className="flex h-full flex-col justify-between bg-white p-5">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
+          <button
+            type="button"
+            onClick={() => {
+              onOpenLanding?.();
+              onClose?.();
+            }}
+            className="text-left focus:outline-none"
+          >
             <span className="font-display text-xl font-extrabold tracking-tight text-[#1E1916]">
-              ChopNow
+              ChopBellyFull
             </span>
             <p className="text-[11px] font-medium text-[#5C5049]">
-              Afro-Modern Culinary Craft
+              You get what you order.
             </p>
-          </div>
+          </button>
           {isMobileDrawer && onClose && (
             <button
               type="button"
@@ -237,17 +246,31 @@ export function SidebarContent({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            onResetDemo();
-            onClose?.();
-          }}
-          className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#FAF6F1] text-xs font-semibold text-[#5C5049] hover:text-[#1E1916]"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Restore Demo Data
-        </button>
+        <div className="flex gap-2">
+          {onOpenLanding && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenLanding();
+                onClose?.();
+              }}
+              className="flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-[#E6DDD3] bg-white text-xs font-semibold text-[#1E1916] hover:bg-[#FAF6F1]"
+            >
+              Landing
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              onResetDemo();
+              onClose?.();
+            }}
+            className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FAF6F1] text-xs font-semibold text-[#5C5049] hover:text-[#1E1916]"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset
+          </button>
+        </div>
       </div>
     </div>
   );

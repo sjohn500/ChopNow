@@ -348,7 +348,7 @@ export function AccountPortalModal({
               id="account-portal-title"
               className="font-display text-xl font-extrabold text-[#1E1916]"
             >
-              ChopNow Account
+              ChopBellyFull Account
             </h2>
             <p className="mt-0.5 text-xs text-[#635850]">
               Sign in as a Buyer to find kitchens close to you, or as a Seller to post food.

@@ -1,9 +1,11 @@
 import { CheckCircle2, Menu } from 'lucide-react';
+import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useState } from 'react';
 import { AccountPortalModal } from './components/AccountPortalModal';
 import { AppViewMode, SidebarContent } from './components/AppSidebar';
 import { HomeDiscoveryScreen } from './components/HomeDiscoveryScreen';
 import { IPhoneFrame } from './components/IPhoneFrame';
+import { LandingPage } from './components/LandingPage';
 import { OrderTrackingScreen } from './components/OrderTrackingScreen';
 import { RestaurantMenuScreen } from './components/RestaurantMenuScreen';
 import { SwipeableScreenDeck } from './components/SwipeableScreenDeck';
@@ -53,6 +55,7 @@ function writeStored<T>(key: string, value: T): void {
 }
 
 export default function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [viewMode, setViewMode] = useState<AppViewMode>('responsive');
   const [activeScreen, setActiveScreen] = useState<ScreenId>('home');
   const [activeCategory, setActiveCategory] = useState<FoodCategoryKey>('all');
@@ -141,8 +144,16 @@ export default function App() {
     });
   }
 
+  function handleEnterApp(screen: ScreenId = 'home') {
+    setActiveScreen(screen);
+    if (viewMode === 'grid') setViewMode('responsive');
+    setShowLanding(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function handleSelectRestaurant(restaurant: Restaurant) {
     setSelectedRestaurantId(restaurant.id);
+    setShowLanding(false);
     if (viewMode !== 'grid') {
       setActiveScreen('menu');
     }
@@ -252,6 +263,8 @@ export default function App() {
       setSelectedRestaurantId(nextUser.sellerRestaurantId);
     }
     if (nextUser.role === 'buyer') {
+      setShowLanding(false);
+      setActiveScreen('home');
       setToast(
         `Signed in as ${nextUser.name}. Showing kitchens near ${nextUser.buyerArea}.`
       );
@@ -338,8 +351,10 @@ export default function App() {
     });
 
     setSelectedRestaurantId(input.restaurantId);
+    setShowLanding(false);
+    setActiveScreen('menu');
     broadcastUpdate();
-    setToast(`${input.name} is now live on ChopNow.`);
+    setToast(`${input.name} is now live on ChopBellyFull.`);
   }
 
   function handleResetDemo() {
@@ -406,100 +421,150 @@ export default function App() {
   const firstName = user.name.split(' ')[0] || 'Account';
 
   return (
-    <div className="flex min-h-dvh bg-[#FAF6F1] text-[#1E1916]">
-      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-[#E6DDD3] bg-white lg:block">
-        <SidebarContent
-          user={user}
-          location={location}
-          activeScreen={activeScreen}
-          viewMode={viewMode}
-          onSelectScreen={(screen) => {
-            setActiveScreen(screen);
-            if (viewMode === 'grid') setViewMode('responsive');
-          }}
-          onChangeViewMode={setViewMode}
-          onFilterLocalFood={() => {
-            setActiveCategory('jollof');
-            setActiveScreen('home');
-            if (viewMode === 'grid') setViewMode('responsive');
-          }}
-          onOpenPortal={openPortal}
-          onResetDemo={handleResetDemo}
-        />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-[#E6DDD3] bg-[#FAF6F1]/90 backdrop-blur-md lg:hidden">
-          <div className="flex h-14 items-center justify-between gap-4 px-4">
-            <button
-              type="button"
-              onClick={() => setIsDrawerOpen(true)}
-              aria-label="Open navigation sidebar"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1E1916] shadow-xs"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-
-            <span className="font-display text-lg font-extrabold tracking-tight text-[#1E1916]">
-              ChopNow
-            </span>
-
-            <button
-              type="button"
-              onClick={() => openPortal(user.role)}
-              className="min-h-[40px] shrink-0 whitespace-nowrap rounded-full bg-[#D9232E] px-3.5 text-xs font-bold text-[#FAF6F1] active:bg-[#9E141D]"
-            >
-              {user.role === 'seller' ? 'Post Food' : `${firstName} · Sign In`}
-            </button>
-          </div>
-          {viewMode === 'responsive' && (
-            <div className="hidden items-center gap-2 border-t border-[#E6DDD3] px-4 py-2 md:flex lg:hidden">
-              {(
-                [
-                  { id: 'home', label: 'Home Discovery' },
-                  { id: 'menu', label: 'Restaurant & Menu' },
-                  { id: 'tracking', label: 'Live Tracking' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveScreen(tab.id)}
-                  className={`min-h-[38px] rounded-full px-4 text-xs font-bold whitespace-nowrap transition-colors ${
-                    activeScreen === tab.id
-                      ? 'bg-[#D9232E] text-white'
-                      : 'bg-white text-[#5C5049] hover:text-[#1E1916]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </header>
-
-        {viewMode === 'responsive' ? (
-          <main className="flex-1">
-            <div className="h-[calc(100dvh-3.5rem)] w-full md:hidden">
-              <SwipeableScreenDeck
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence mode="wait">
+        {showLanding ? (
+          <motion.div
+            key="landing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <LandingPage
+              restaurants={restaurants}
+              location={location}
+              onEnterApp={handleEnterApp}
+              onSelectRestaurant={handleSelectRestaurant}
+              onOpenPortal={openPortal}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="marketplace"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="flex min-h-dvh bg-[#FAF6F1] text-[#1E1916]"
+          >
+            <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-[#E6DDD3] bg-white lg:block">
+              <SidebarContent
+                user={user}
+                location={location}
                 activeScreen={activeScreen}
-                onChangeScreen={setActiveScreen}
-                screens={[
-                  { id: 'home', label: 'Home', node: homeScreenNode },
-                  { id: 'menu', label: 'Menu', node: menuScreenNode },
-                  { id: 'tracking', label: 'Track', node: trackingScreenNode },
-                ]}
+                viewMode={viewMode}
+                onSelectScreen={(screen) => {
+                  setActiveScreen(screen);
+                  if (viewMode === 'grid') setViewMode('responsive');
+                }}
+                onChangeViewMode={setViewMode}
+                onFilterLocalFood={() => {
+                  setActiveCategory('jollof');
+                  setActiveScreen('home');
+                  if (viewMode === 'grid') setViewMode('responsive');
+                }}
+                onOpenPortal={openPortal}
+                onOpenLanding={() => setShowLanding(true)}
+                onResetDemo={handleResetDemo}
               />
-            </div>
+            </aside>
 
-            <div className="hidden min-h-full md:block">
-              {activeScreen === 'home'
-                ? homeScreenNode
-                : activeScreen === 'menu'
-                  ? menuScreenNode
-                  : trackingScreenNode}
-            </div>
-          </main>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <header className="sticky top-0 z-30 border-b border-[#E6DDD3] bg-[#FAF6F1]/90 backdrop-blur-md lg:hidden">
+                <div className="flex h-14 items-center justify-between gap-4 px-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsDrawerOpen(true)}
+                    aria-label="Open navigation sidebar"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#1E1916] shadow-xs"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLanding(true)}
+                    className="font-display text-lg font-extrabold tracking-tight text-[#1E1916]"
+                  >
+                    ChopBellyFull
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openPortal(user.role)}
+                    className="min-h-[40px] shrink-0 rounded-full bg-[#D9232E] px-3.5 text-xs font-bold whitespace-nowrap text-[#FAF6F1] active:bg-[#9E141D]"
+                  >
+                    {user.role === 'seller'
+                      ? 'Post Food'
+                      : `${firstName} · Sign In`}
+                  </button>
+                </div>
+                {viewMode === 'responsive' && (
+                  <div className="hidden items-center gap-2 border-t border-[#E6DDD3] px-4 py-2 md:flex lg:hidden">
+                    {(
+                      [
+                        { id: 'home', label: 'Home Discovery' },
+                        { id: 'menu', label: 'Restaurant & Menu' },
+                        { id: 'tracking', label: 'Live Tracking' },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveScreen(tab.id)}
+                        className={`min-h-[38px] rounded-full px-4 text-xs font-bold whitespace-nowrap transition-colors ${
+                          activeScreen === tab.id
+                            ? 'bg-[#D9232E] text-white'
+                            : 'bg-white text-[#5C5049] hover:text-[#1E1916]'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </header>
+
+              {viewMode === 'responsive' ? (
+                <main className="flex-1">
+                  <div className="h-[calc(100dvh-3.5rem)] w-full md:hidden">
+                    <SwipeableScreenDeck
+                      activeScreen={activeScreen}
+                      onChangeScreen={setActiveScreen}
+                      screens={[
+                        { id: 'home', label: 'Home', node: homeScreenNode },
+                        { id: 'menu', label: 'Menu', node: menuScreenNode },
+                        {
+                          id: 'tracking',
+                          label: 'Track',
+                          node: trackingScreenNode,
+                        },
+                      ]}
+                    />
+                  </div>
+
+                  <div className="hidden min-h-full md:block">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={activeScreen}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{
+                          duration: 0.2,
+                          ease: [0.16, 1, 0.3, 1],
+                        }}
+                      >
+                        {activeScreen === 'home'
+                          ? homeScreenNode
+                          : activeScreen === 'menu'
+                            ? menuScreenNode
+                            : trackingScreenNode}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                </main>
         ) : (
           <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
             <div className="mx-auto max-w-6xl">
@@ -508,10 +573,10 @@ export default function App() {
                   <h1 className="font-display text-2xl font-extrabold tracking-tight text-balance text-[#1E1916] md:text-3xl">
                     {viewMode === 'phone'
                       ? 'Mobile frame preview — swipe between screens.'
-                      : 'All three ChopNow screens side by side.'}
+                      : 'All three ChopBellyFull screens side by side.'}
                   </h1>
                   <p className="mt-1 text-sm text-[#635850]">
-                    Switch back to Full mode in the sidebar anytime to use ChopNow across phone, laptop, and desktop widths.
+                    Switch back to Full mode in the sidebar anytime to use ChopBellyFull across phone, laptop, and desktop widths.
                   </p>
                 </div>
 
@@ -589,7 +654,7 @@ export default function App() {
           className="fixed inset-0 z-50 flex bg-black/45 backdrop-blur-xs"
           role="dialog"
           aria-modal="true"
-          aria-label="ChopNow sidebar navigation"
+          aria-label="ChopBellyFull sidebar navigation"
         >
           <div className="h-full w-72 max-w-[82vw] shadow-2xl">
             <SidebarContent
@@ -608,6 +673,7 @@ export default function App() {
                 if (viewMode === 'grid') setViewMode('responsive');
               }}
               onOpenPortal={openPortal}
+              onOpenLanding={() => setShowLanding(true)}
               onResetDemo={handleResetDemo}
               onClose={() => setIsDrawerOpen(false)}
               isMobileDrawer
@@ -621,6 +687,9 @@ export default function App() {
           />
         </div>
       )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AccountPortalModal
         key={`${portalTab}-${portalOpen}`}
@@ -637,16 +706,23 @@ export default function App() {
         onResetDemo={handleResetDemo}
       />
 
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed right-4 bottom-5 left-4 z-50 mx-auto flex max-w-md items-center gap-2.5 rounded-2xl bg-[#1E1916] px-4 py-3 text-sm font-medium text-[#FAF6F1] shadow-xl md:right-6 md:left-auto"
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-[#D9232E]" />
-          <span>{toast}</span>
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast}
+            role="status"
+            aria-live="polite"
+            initial={{ opacity: 0, y: 18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 14, scale: 0.96 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed right-4 bottom-5 left-4 z-50 mx-auto flex max-w-md items-center gap-2.5 rounded-2xl bg-[#1E1916] px-4 py-3 text-sm font-medium text-[#FAF6F1] shadow-xl md:right-6 md:left-auto"
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-[#D9232E]" />
+            <span>{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </MotionConfig>
   );
 }

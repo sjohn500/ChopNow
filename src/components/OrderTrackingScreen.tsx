@@ -12,6 +12,7 @@ import {
   Store,
   X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { FormEvent, useState } from 'react';
 import { formatNaira } from '../data/deliveryData';
 import { ActiveOrder, TrackingStage } from '../types/delivery';
@@ -246,18 +247,25 @@ export function OrderTrackingScreen({
               </text>
             </g>
 
-            <g
-              transform={`translate(${riderCoords.x}, ${riderCoords.y})`}
-              className="transition-transform duration-500"
+            <motion.g
+              initial={false}
+              animate={{ x: riderCoords.x, y: riderCoords.y }}
+              transition={{ type: 'spring', stiffness: 180, damping: 22 }}
             >
-              <circle r="17" fill="#D9232E" fillOpacity="0.2" />
+              <motion.circle
+                r="17"
+                fill="#D9232E"
+                fillOpacity="0.22"
+                animate={{ scale: [1, 1.35, 1], opacity: [0.35, 0.1, 0.35] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              />
               <circle
                 r="12"
                 fill="#D9232E"
                 stroke="#FAF6F1"
                 strokeWidth="2.5"
               />
-            </g>
+            </motion.g>
           </svg>
 
           <div
@@ -345,13 +353,23 @@ export function OrderTrackingScreen({
                 </p>
               </div>
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F4E8D6] text-[#D9232E]">
-                {order.stage === 'preparing' ? (
-                  <ChefHat className="h-5 w-5" />
-                ) : order.stage === 'confirmed' ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  <Bike className="h-5 w-5" />
-                )}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={order.stage}
+                    initial={{ opacity: 0, scale: 0.75, rotate: -10 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.75, rotate: 10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {order.stage === 'preparing' ? (
+                      <ChefHat className="h-5 w-5" />
+                    ) : order.stage === 'confirmed' ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      <Bike className="h-5 w-5" />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </div>
 

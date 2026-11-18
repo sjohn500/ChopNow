@@ -25,13 +25,15 @@ export function PlateImage({ src, alt, className = '' }: PlateImageProps) {
     );
   }
 
+  const smartPosition = src.includes('20419328') ? 'object-[50%_18%]' : '';
+
   return (
     <img
       src={src}
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setHasError(true)}
-      className={`object-cover ${className}`}
+      className={`object-cover ${smartPosition} ${className}`}
     />
   );
 }

@@ -4,7 +4,9 @@ import {
   Flame,
   Home,
   LayoutGrid,
+  LogOut,
   MapPin,
+  Pencil,
   RotateCcw,
   Smartphone,
   Store,
@@ -13,6 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { AuthUser, ScreenId } from '../types/delivery';
+import { AccountPortalTab } from './AccountPortalModal';
+import { PlateImage } from './PlateImage';
 
 export type AppViewMode = 'responsive' | 'phone' | 'grid';
 
@@ -24,8 +28,9 @@ interface SidebarContentProps {
   onSelectScreen: (screen: ScreenId) => void;
   onChangeViewMode: (mode: AppViewMode) => void;
   onFilterLocalFood: () => void;
-  onOpenPortal: (tab: 'buyer' | 'seller') => void;
+  onOpenPortal: (tab: AccountPortalTab) => void;
   onOpenLanding?: () => void;
+  onLogout?: () => void;
   onResetDemo: () => void;
   onClose?: () => void;
   isMobileDrawer?: boolean;
@@ -41,6 +46,7 @@ export function SidebarContent({
   onFilterLocalFood,
   onOpenPortal,
   onOpenLanding,
+  onLogout,
   onResetDemo,
   onClose,
   isMobileDrawer = false,
@@ -103,22 +109,43 @@ export function SidebarContent({
         </div>
 
         <div className="rounded-2xl bg-[#F4E8D6]/80 p-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#D9232E]">
-              {user.role === 'seller' ? (
-                <Store className="h-4 w-4" />
-              ) : (
-                <User className="h-4 w-4" />
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-[#1E1916]">
-                {user.name}
-              </p>
-              <p className="truncate text-[11px] font-semibold text-[#D9232E]">
-                {user.role === 'seller' ? 'Seller Account' : 'Buyer Account'}
-              </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[#D9232E]">
+                {user.avatarUrl ? (
+                  <PlateImage
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    className="h-full w-full"
+                  />
+                ) : user.role === 'seller' ? (
+                  <Store className="h-4 w-4" />
+                ) : (
+                  <User className="h-4 w-4" />
+                )}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-[#1E1916]">
+                  {user.name}
+                </p>
+                <p className="truncate text-[11px] font-semibold text-[#D9232E]">
+                  {user.role === 'seller' ? 'Seller Account' : 'Buyer Account'}
+                </p>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onClose?.();
+                onOpenPortal('profile');
+              }}
+              aria-label="Edit profile"
+              className="inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-full bg-white px-2.5 text-[11px] font-bold text-[#1E1916] shadow-xs transition-colors hover:bg-[#FAF6F1]"
+            >
+              <Pencil className="h-3 w-3 text-[#D9232E]" />
+              Edit
+            </button>
           </div>
           <p className="mt-2 flex items-center gap-1 truncate text-[11px] text-[#5C5049]">
             <MapPin className="h-3 w-3 shrink-0 text-[#D9232E]" />
@@ -271,6 +298,20 @@ export function SidebarContent({
             Reset
           </button>
         </div>
+
+        {onLogout && (
+          <button
+            type="button"
+            onClick={() => {
+              onLogout();
+              onClose?.();
+            }}
+            className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl bg-[#F4E8D6]/70 text-xs font-bold text-[#9E141D] hover:bg-[#F4E8D6]"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Sign Out
+          </button>
+        )}
       </div>
     </div>
   );

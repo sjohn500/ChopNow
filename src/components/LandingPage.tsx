@@ -13,24 +13,27 @@ import {
 import { motion } from 'motion/react';
 import { formatNaira, getDistanceToRestaurant } from '../data/deliveryData';
 import { Restaurant, ScreenId } from '../types/delivery';
+import { AccountPortalTab } from './AccountPortalModal';
 import { PlateImage } from './PlateImage';
 
 interface LandingPageProps {
   restaurants: Restaurant[];
   location: string;
+  isAuthenticated: boolean;
   onEnterApp: (screen?: ScreenId) => void;
   onSelectRestaurant: (restaurant: Restaurant) => void;
-  onOpenPortal: (tab: 'buyer' | 'seller') => void;
+  onOpenPortal: (tab: AccountPortalTab) => void;
 }
 
 const HERO_FEAST_IMAGE =
-  '/src/assets/images/hero_chopbellyfull_feast_1795011357691.jpg';
+  '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg';
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
 export function LandingPage({
   restaurants,
   location,
+  isAuthenticated,
   onEnterApp,
   onSelectRestaurant,
   onOpenPortal,
@@ -86,7 +89,7 @@ export function LandingPage({
             onClick={() => onEnterApp('home')}
             className="min-h-[42px] shrink-0 rounded-full bg-[#D9232E] px-5 text-sm font-bold whitespace-nowrap text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
           >
-            Order Food
+            {isAuthenticated ? 'Order Food' : 'Login / Sign Up'}
           </motion.button>
         </div>
       </header>
@@ -167,7 +170,7 @@ export function LandingPage({
               >
                 <PlateImage
                   src={HERO_FEAST_IMAGE}
-                  alt="Smoky Party Jollof rice, grilled chicken, suya skewers, fried plantain dodo, and steaming catfish pepper soup"
+                  alt="Spiced Nigerian rice with charred grilled chicken quarter and sautéed bell peppers"
                   className="h-full w-full"
                 />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1E1916]/80 via-[#1E1916]/15 to-transparent" />
@@ -178,7 +181,7 @@ export function LandingPage({
                       Mama Put Express · Eti-Osa, Lagos
                     </p>
                     <p className="font-display text-lg font-extrabold text-white">
-                      Party Jollof, Grilled Chicken &amp; Dodo
+                      Spiced Rice &amp; Charred Grilled Chicken
                     </p>
                   </div>
                   <button
@@ -186,7 +189,7 @@ export function LandingPage({
                     onClick={() => onEnterApp('menu')}
                     className="tabular-nums-clean min-h-[40px] shrink-0 self-start rounded-full bg-white px-4 text-xs font-bold whitespace-nowrap text-[#1E1916] shadow-md transition-colors hover:bg-[#F4E8D6] sm:self-auto"
                   >
-                    View Menu · ₦3,200
+                    View Menu · ₦4,200
                   </button>
                 </div>
               </motion.div>

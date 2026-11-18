@@ -1,7 +1,10 @@
 import { CheckCircle2, Menu } from 'lucide-react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useState } from 'react';
-import { AccountPortalModal } from './components/AccountPortalModal';
+import {
+  AccountPortalModal,
+  AccountPortalTab,
+} from './components/AccountPortalModal';
 import { AppViewMode, SidebarContent } from './components/AppSidebar';
 import { HomeDiscoveryScreen } from './components/HomeDiscoveryScreen';
 import { IPhoneFrame } from './components/IPhoneFrame';
@@ -29,9 +32,10 @@ import {
 } from './types/delivery';
 
 const KEYS = {
-  restaurants: 'chopnow_ios_restaurants_v6',
+  restaurants: 'chopbellyfull_restaurants_v7',
   user: 'chopnow_ios_user_v6',
-  order: 'chopnow_ios_order_v6',
+  order: 'chopbellyfull_order_v7',
+  auth: 'chopbellyfull_auth_v1',
 } as const;
 
 const SYNC_CHANNEL = 'chopnow_ios_marketplace_sync_v6';
@@ -55,7 +59,14 @@ function writeStored<T>(key: string, value: T): void {
 }
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() =>
+    readStored(KEYS.auth, false)
+  );
   const [showLanding, setShowLanding] = useState(true);
+  const [pendingTarget, setPendingTarget] = useState<{
+    screen: ScreenId;
+    restaurantId?: string;
+  } | null>(null);
   const [viewMode, setViewMode] = useState<AppViewMode>('responsive');
   const [activeScreen, setActiveScreen] = useState<ScreenId>('home');
   const [activeCategory, setActiveCategory] = useState<FoodCategoryKey>('all');
@@ -78,7 +89,7 @@ export default function App() {
     readStored(KEYS.order, INITIAL_ACTIVE_ORDER)
   );
   const [portalOpen, setPortalOpen] = useState(false);
-  const [portalTab, setPortalTab] = useState<'buyer' | 'seller'>('buyer');
+  const [portalTab, setPortalTab] = useState<AccountPortalTab>('buyer');
   const [toast, setToast] = useState<string | null>(null);
 
   const broadcastUpdate = useCallback(() => {
@@ -130,7 +141,7 @@ export default function App() {
     0
   );
 
-  function openPortal(tab: 'buyer' | 'seller') {
+  function openPortal(tab: AccountPortalTab) {
     setPortalTab(tab);
     setPortalOpen(true);
   }
@@ -145,6 +156,12 @@ export default function App() {
   }
 
   function handleEnterApp(screen: ScreenId = 'home') {
+    if (!isAuthenticated) {
+      setPendingTarget({ screen });
+      openPortal('buyer');
+      setToast('Please sign in or sign up first to explore kitchens near you.');
+      return;
+    }
     setActiveScreen(screen);
     if (viewMode === 'grid') setViewMode('responsive');
     setShowLanding(false);
@@ -152,6 +169,12 @@ export default function App() {
   }
 
   function handleSelectRestaurant(restaurant: Restaurant) {
+    if (!isAuthenticated) {
+      setPendingTarget({ screen: 'menu', restaurantId: restaurant.id });
+      openPortal('buyer');
+      setToast(`Sign in or sign up to view ${restaurant.name}'s menu.`);
+      return;
+    }
     setSelectedRestaurantId(restaurant.id);
     setShowLanding(false);
     if (viewMode !== 'grid') {
@@ -254,6 +277,8 @@ export default function App() {
   }
 
   function handleLogin(nextUser: AuthUser) {
+    setIsAuthenticated(true);
+    writeStored(KEYS.auth, true);
     setUser(nextUser);
     writeStored(KEYS.user, nextUser);
     if (nextUser.buyerArea) {
@@ -263,12 +288,87 @@ export default function App() {
       setSelectedRestaurantId(nextUser.sellerRestaurantId);
     }
     if (nextUser.role === 'buyer') {
+      const targetScreen = pendingTarget?.screen ?? 'home';
+      if (pendingTarget?.restaurantId) {
+        setSelectedRestaurantId(pendingTarget.restaurantId);
+      }
+      setPendingTarget(null);
       setShowLanding(false);
-      setActiveScreen('home');
+      setActiveScreen(targetScreen);
       setToast(
         `Signed in as ${nextUser.name}. Showing kitchens near ${nextUser.buyerArea}.`
       );
     }
+  }
+
+  function handleLogout() {
+    setIsAuthenticated(false);
+    writeStored(KEYS.auth, false);
+    setPendingTarget(null);
+    setShowLanding(true);
+    setPortalOpen(false);
+    setIsDrawerOpen(false);
+    setToast('Signed out. Sign in or sign up anytime to access kitchens.');
+  }
+
+  function handleUpdateProfile(
+    nextUser: AuthUser,
+    kitchenPatch?: {
+      id: string;
+      name: string;
+      address: string;
+      area: string;
+      categoryKey: Exclude<FoodCategoryKey, 'all'>;
+    }
+  ) {
+    setUser(nextUser);
+    writeStored(KEYS.user, nextUser);
+    setLocation(nextUser.buyerArea);
+
+    if (kitchenPatch) {
+      const tagMap: Record<Exclude<FoodCategoryKey, 'all'>, string[]> = {
+        jollof: ['Jollof & Rice', 'Authentic Local'],
+        swallows: ['Swallows & Soup', 'Local Buka'],
+        suya: ['Suya & Grills', 'Charcoal'],
+        small_chops: ['Small Chops', 'Party Bites'],
+        pepper_soup: ['Pepper Soup', 'Hot Pot'],
+        drinks: ['Palm Wine/Drinks', 'Chilled'],
+      };
+      const coords = getNigeriaLocationCoords(kitchenPatch.area);
+
+      setRestaurants((prev) => {
+        const next = prev.map((r) =>
+          r.id === kitchenPatch.id
+            ? {
+                ...r,
+                name: kitchenPatch.name,
+                address: kitchenPatch.address,
+                area: kitchenPatch.area,
+                categoryKey: kitchenPatch.categoryKey,
+                cuisineTags: tagMap[kitchenPatch.categoryKey],
+                lat: coords.lat + 0.002,
+                lng: coords.lng + 0.002,
+              }
+            : r
+        );
+        writeStored(KEYS.restaurants, next);
+        return next;
+      });
+
+      if (activeOrder.restaurantId === kitchenPatch.id) {
+        const updatedOrder: ActiveOrder = {
+          ...activeOrder,
+          restaurantName: kitchenPatch.name,
+          restaurantAddress: kitchenPatch.address,
+          restaurantArea: kitchenPatch.area,
+        };
+        setActiveOrder(updatedOrder);
+        writeStored(KEYS.order, updatedOrder);
+      }
+    }
+
+    broadcastUpdate();
+    setToast('Profile updated and saved.');
   }
 
   function handleCreateRestaurant(input: {
@@ -423,7 +523,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence mode="wait">
-        {showLanding ? (
+        {showLanding || !isAuthenticated ? (
           <motion.div
             key="landing"
             initial={{ opacity: 0 }}
@@ -434,6 +534,7 @@ export default function App() {
             <LandingPage
               restaurants={restaurants}
               location={location}
+              isAuthenticated={isAuthenticated}
               onEnterApp={handleEnterApp}
               onSelectRestaurant={handleSelectRestaurant}
               onOpenPortal={openPortal}
@@ -466,6 +567,7 @@ export default function App() {
                 }}
                 onOpenPortal={openPortal}
                 onOpenLanding={() => setShowLanding(true)}
+                onLogout={handleLogout}
                 onResetDemo={handleResetDemo}
               />
             </aside>
@@ -674,6 +776,7 @@ export default function App() {
               }}
               onOpenPortal={openPortal}
               onOpenLanding={() => setShowLanding(true)}
+              onLogout={handleLogout}
               onResetDemo={handleResetDemo}
               onClose={() => setIsDrawerOpen(false)}
               isMobileDrawer
@@ -692,17 +795,23 @@ export default function App() {
       </AnimatePresence>
 
       <AccountPortalModal
-        key={`${portalTab}-${portalOpen}`}
+        key={`${portalTab}-${portalOpen}-${isAuthenticated}`}
         isOpen={portalOpen}
+        isAuthenticated={isAuthenticated}
         initialTab={portalTab}
         user={user}
         restaurants={restaurants}
         activeOrder={activeOrder}
         onClose={() => setPortalOpen(false)}
         onLogin={handleLogin}
+        onUpdateProfile={handleUpdateProfile}
         onCreateRestaurant={handleCreateRestaurant}
         onPublishDish={handlePublishDish}
         onUpdateOrderStage={handleStageChange}
+        onGoToFeed={() => {
+          setShowLanding(false);
+          setActiveScreen('home');
+        }}
         onResetDemo={handleResetDemo}
       />
 

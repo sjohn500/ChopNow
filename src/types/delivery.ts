@@ -16,6 +16,8 @@ export type UserRole = 'buyer' | 'seller';
 export interface AuthUser {
   name: string;
   phone: string;
+  email?: string;
+  avatarUrl?: string;
   role: UserRole;
   buyerArea: string;
   buyerLandmark: string;

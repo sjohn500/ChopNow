@@ -20,16 +20,16 @@ const CATEGORIES: FoodCategory[] = [
 
 const QUICK_SAMPLE_PHOTOS = [
   {
-    label: 'Jollof Rice',
-    url: '/src/assets/images/plate_jollof_chicken_1795003763904.jpg',
+    label: 'Jollof & Dodo',
+    url: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
   },
   {
-    label: 'Egusi & Yam',
-    url: '/src/assets/images/plate_egusi_pounded_yam_1795003764805.jpg',
+    label: 'Rice & Chicken',
+    url: '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg',
   },
   {
-    label: 'Beef Suya',
-    url: '/src/assets/images/plate_suya_platter_1795003765134.jpg',
+    label: 'Akara & Pap',
+    url: '/assets/aistudio/pexels-prosper-buka-1289782307-28736731_1eb2145c.jpg',
   },
 ];
 
@@ -114,7 +114,7 @@ export function PostFoodView({
           Post a Plate
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Snap a fresh plate photo, set your Naira price, and publish directly to the live ChopNow feed.
+          Snap a fresh plate photo, set your Naira price, and publish directly to the live ChopBellyFull feed.
         </p>
       </div>
 

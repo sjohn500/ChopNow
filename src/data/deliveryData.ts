@@ -78,37 +78,37 @@ export const RESTAURANTS: Restaurant[] = [
     lat: 6.4494,
     lng: 3.4692,
     promoLabel: 'Hot & Fresh',
-    heroImageUrl: '/src/assets/images/plate_jollof_chicken_1795003763904.jpg',
+    heroImageUrl: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
     menu: [
       {
         id: 'mp-jollof',
         restaurantId: 'mama-put-express',
-        name: 'Smoky Party Jollof & Chicken',
+        name: 'Smoky Party Jollof & Sweet Dodo',
         description:
-          'Firewood party jollof rice, crispy spiced chicken leg, sweet dodo plantains, and creamy coleslaw.',
+          'Firewood party jollof rice topped with peppered meat sauce and golden caramelized plantain cubes.',
         price: 3500,
         category: 'Combos',
-        imageUrl: '/src/assets/images/plate_jollof_chicken_1795003763904.jpg',
-      },
-      {
-        id: 'mp-ofada',
-        restaurantId: 'mama-put-express',
-        name: 'Ofada Rice & Ayamase Combo',
-        description:
-          'Local unpolished Ofada rice wrapped in uma leaf with spicy green ayamase stew, assorted meat, and egg.',
-        price: 4000,
-        category: 'Combos',
-        imageUrl: '/src/assets/images/local_ofada_ayamase_1795006179378.jpg',
+        imageUrl: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
       },
       {
         id: 'mp-fried-turkey',
         restaurantId: 'mama-put-express',
-        name: 'Festive Fried Rice, Turkey & Moi-Moi',
+        name: 'Spiced Rice & Charred Grilled Chicken',
         description:
-          'Classic Nigerian fried rice paired with peppered grilled turkey and leaf-steamed moi-moi.',
+          'Seasoned Nigerian rice served with flame-charred chicken quarter and sautéed green peppers.',
         price: 4200,
         category: 'Combos',
-        imageUrl: '/src/assets/images/local_fried_rice_turkey_1795006182196.jpg',
+        imageUrl: '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg',
+      },
+      {
+        id: 'mp-ofada',
+        restaurantId: 'mama-put-express',
+        name: 'Owambe Party Feast Spread',
+        description:
+          'Party jollof, stir-fry noodles, grilled chicken, curried meat rice, flatbread, and hot pepper sauces.',
+        price: 6500,
+        category: 'Combos',
+        imageUrl: '/assets/aistudio/pexels-picswithjer-30246915_e571c980.jpg',
       },
       {
         id: 'mp-egusi',
@@ -123,32 +123,34 @@ export const RESTAURANTS: Restaurant[] = [
       {
         id: 'mp-suya-plate',
         restaurantId: 'mama-put-express',
-        name: 'Peppered Assorted Beef & Turkey',
+        name: 'Peppered Ponmo & Vegetable Stew',
         description:
-          'Flame-seared peppered beef and grilled turkey chunks tossed in rich ata-dindin pepper sauce.',
-        price: 3200,
+          'Tender stewed cow skin (ponmo) and assorted beef in rich ata-dindin pepper sauce over green efo.',
+        price: 3400,
         category: 'Proteins',
-        imageUrl: '/src/assets/images/plate_suya_platter_1795003765134.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37648018_3ef90570.jpg',
       },
       {
         id: 'mp-beans',
         restaurantId: 'mama-put-express',
-        name: 'Ewa Agoyin & Sweet Dodo',
+        name: 'Sweet Dodo & Plantain Skewers',
         description:
-          'Creamy honey beans finished with caramelized Agoyin pepper sauce and golden ripe plantain slices.',
+          'Golden fried ripe plantain slices and seasoned pepper-onion dodo skewers served hot.',
         price: 2200,
         category: 'Sides',
-        imageUrl: '/src/assets/images/plate_beans_dodo_1795003766399.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-ndagi-idris-2159907004-36458103_fd393f46.jpg',
       },
       {
         id: 'mp-zobo',
         restaurantId: 'mama-put-express',
-        name: 'Chilled Pineapple Zobo',
+        name: 'Chilled Pineapple Zobo & Fruit Press',
         description:
-          'Spiced hibiscus cooler brewed with fresh pineapple, ginger root, and garden mint.',
+          'Spiced hibiscus cooler brewed with fresh market pineapple, ginger root, and garden mint.',
         price: 1000,
         category: 'Sides',
-        imageUrl: '/src/assets/images/food_hibiscus_zobo_drink_1795004109645.jpg',
+        imageUrl: '/assets/aistudio/pexels-jagaba-37126238_22267ce8.jpg',
       },
     ],
   },
@@ -166,17 +168,19 @@ export const RESTAURANTS: Restaurant[] = [
     lat: 6.5121,
     lng: 3.3752,
     promoLabel: 'Hot & Fresh',
-    heroImageUrl: '/src/assets/images/plate_efo_riro_amala_1795003765371.jpg',
+    heroImageUrl:
+      '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37648018_3ef90570.jpg',
     menu: [
       {
         id: 'ib-amala',
         restaurantId: 'iya-basira-kitchen',
-        name: 'Efo Riro & Hot Amala Bowl',
+        name: 'Efo, Ponmo & Assorted Stew Bowl',
         description:
-          'Rich palm-oil spinach stew with slow-braised goat meat, locust beans, and silky hot amala.',
+          'Rich green spinach & ewedu base topped with slow-simmered red pepper stew and tender ponmo.',
         price: 4200,
         category: 'Swallows',
-        imageUrl: '/src/assets/images/plate_efo_riro_amala_1795003765371.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37648018_3ef90570.jpg',
       },
       {
         id: 'ib-egusi',
@@ -191,12 +195,12 @@ export const RESTAURANTS: Restaurant[] = [
       {
         id: 'ib-fried-rice',
         restaurantId: 'iya-basira-kitchen',
-        name: 'Buka Jollof & Fried Rice Duo',
+        name: 'Buka Jollof & Fried Chicken Plate',
         description:
-          'Half firewood jollof, half festive fried rice with peppered turkey and moi-moi.',
+          'Spiced rice paired with smoky flame-grilled chicken quarter and sautéed bell peppers.',
         price: 4100,
         category: 'Combos',
-        imageUrl: '/src/assets/images/local_fried_rice_turkey_1795006182196.jpg',
+        imageUrl: '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg',
       },
       {
         id: 'ib-peppersoup',
@@ -211,19 +215,20 @@ export const RESTAURANTS: Restaurant[] = [
       {
         id: 'ib-puff',
         restaurantId: 'iya-basira-kitchen',
-        name: 'Small Chops & Puff-Puff Box',
+        name: 'Hot Akara & Fried Yam Tray',
         description:
-          'Golden Nigerian puff-puff balls, peppered gizzard bites, and crispy samosa.',
+          'Freshly fried golden akara bean cakes and crisp fried yam slices straight from the pan.',
         price: 2000,
         category: 'Sides',
-        imageUrl: '/src/assets/images/food_puff_puff_dessert_1795004109126.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-finalchoice-147015110-40786356_312d796e.jpg',
       },
     ],
   },
   {
     id: 'auntie-ngozi-pot',
     name: 'Auntie Ngozi Pepper Soup Spot',
-    cuisineTags: ['Pepper Soup', 'Boli & Fish'],
+    cuisineTags: ['Pepper Soup', 'Breakfast & Rice'],
     categoryKey: 'pepper_soup',
     rating: 4.8,
     reviewCount: 286,
@@ -234,17 +239,30 @@ export const RESTAURANTS: Restaurant[] = [
     lat: 9.0782,
     lng: 7.4721,
     promoLabel: 'Hot & Fresh',
-    heroImageUrl: '/src/assets/images/local_pepper_soup_1795006181565.jpg',
+    heroImageUrl:
+      '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg',
     menu: [
       {
         id: 'an-peppersoup',
         restaurantId: 'auntie-ngozi-pot',
-        name: 'Goat Meat Pepper Soup & Boiled Yam',
+        name: 'Spiced Rice & Charred Chicken Quarter',
         description:
-          'Steaming aromatic Nigerian pepper soup simmered with scent leaves, uziza, and soft white yam.',
+          'Aromatic Nigerian rice served with herb-marinated grilled chicken and sautéed veggies.',
         price: 3800,
         category: 'Combos',
-        imageUrl: '/src/assets/images/local_pepper_soup_1795006181565.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-discountedchef-40262791_428c23ce.jpg',
+      },
+      {
+        id: 'an-akara-box',
+        restaurantId: 'auntie-ngozi-pot',
+        name: 'Akara, Agege Toast & Creamy Pap Box',
+        description:
+          'Hot crispy akara balls, toasted bread, omelet egg, and warm milk-swirl pap.',
+        price: 3200,
+        category: 'Combos',
+        imageUrl:
+          '/assets/aistudio/pexels-prosper-buka-1289782307-28736731_1eb2145c.jpg',
       },
       {
         id: 'an-boli-fish',
@@ -257,24 +275,14 @@ export const RESTAURANTS: Restaurant[] = [
         imageUrl: '/src/assets/images/local_boli_fish_1795006182721.jpg',
       },
       {
-        id: 'an-ofada',
-        restaurantId: 'auntie-ngozi-pot',
-        name: 'Ofada Special & Boiled Egg',
-        description:
-          'Authentic leaf-wrapped Ofada rice with rich green designer stew and assorted meats.',
-        price: 3900,
-        category: 'Combos',
-        imageUrl: '/src/assets/images/local_ofada_ayamase_1795006179378.jpg',
-      },
-      {
         id: 'an-zobo',
         restaurantId: 'auntie-ngozi-pot',
-        name: 'Fresh Palm & Hibiscus Cooler',
+        name: 'Fresh Pineapple & Fruit Cooler',
         description:
-          'Chilled hibiscus and pineapple drink spiced with cloves and ginger.',
-        price: 1000,
+          'Chilled market-fresh pineapple and citrus press blended with ginger.',
+        price: 1200,
         category: 'Sides',
-        imageUrl: '/src/assets/images/food_hibiscus_zobo_drink_1795004109645.jpg',
+        imageUrl: '/assets/aistudio/pexels-jagaba-37126238_22267ce8.jpg',
       },
     ],
   },
@@ -291,84 +299,110 @@ export const RESTAURANTS: Restaurant[] = [
     address: '45 Bode Thomas St, Surulere',
     lat: 6.4945,
     lng: 3.3568,
-    heroImageUrl: '/src/assets/images/plate_suya_platter_1795003765134.jpg',
+    heroImageUrl: '/assets/aistudio/pexels-jessicairoh-20419328_715fe24a.jpg',
     menu: [
       {
         id: 'sw-suya',
         restaurantId: 'sultan-suya-grills',
         name: 'Yaji Beef Suya Skewers Platter',
         description:
-          'Tender flame-seared sirloin suya strips dusted with roasted peanut yaji, red onions, and tomatoes.',
+          'Charcoal-seared sirloin suya skewers fresh off the grill dusted with roasted peanut yaji.',
         price: 3600,
         category: 'Proteins',
-        imageUrl: '/src/assets/images/plate_suya_platter_1795003765134.jpg',
+        imageUrl: '/assets/aistudio/pexels-jessicairoh-20419328_715fe24a.jpg',
       },
       {
         id: 'sw-chicken',
         restaurantId: 'sultan-suya-grills',
-        name: 'Loaded Suya Chicken Shawarma',
+        name: 'Smoky Jollof & Dodo Grill Pack',
         description:
-          'Char-grilled marinated chicken wrap with crunchy cabbage, pickles, and roasted garlic sauce.',
-        price: 3200,
+          'Firewood jollof rice paired with sweet fried plantain and peppered suya meat.',
+        price: 3900,
         category: 'Combos',
-        imageUrl: '/src/assets/images/food_chicken_shawarma_1795004108793.jpg',
+        imageUrl: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
       },
       {
-        id: 'sw-zobo',
+        id: 'sw-dodo',
         restaurantId: 'sultan-suya-grills',
-        name: 'Chilled Zobo Splash',
+        name: 'Peppered Plantain & Dodo Skewers',
         description:
-          'Cold-pressed hibiscus drink infused with ginger and pineapple.',
-        price: 1000,
+          'Sweet golden plantain cubes skewered with crisp red onions and bell peppers.',
+        price: 1800,
         category: 'Sides',
-        imageUrl: '/src/assets/images/food_hibiscus_zobo_drink_1795004109645.jpg',
+        imageUrl:
+          '/assets/aistudio/pexels-ndagi-idris-2159907004-36458103_fd393f46.jpg',
       },
     ],
   },
   {
     id: 'chef-tunde-chops',
-    name: 'Chef Tunde Small Chops & Grill',
-    cuisineTags: ['Small Chops', 'Party Grill'],
+    name: 'Chef Tunde Breakfast & Small Chops',
+    cuisineTags: ['Small Chops', 'Akara & Pap'],
     categoryKey: 'small_chops',
-    rating: 4.7,
-    reviewCount: 215,
-    deliveryMinutes: '20–28 min',
-    deliveryFee: 500,
+    rating: 4.8,
+    reviewCount: 245,
+    deliveryMinutes: '18–26 min',
+    deliveryFee: 400,
     area: 'Port Harcourt, Rivers',
     address: '8 GRA Phase 2, Port Harcourt',
     lat: 4.8211,
     lng: 7.0184,
-    heroImageUrl: '/src/assets/images/food_puff_puff_dessert_1795004109126.jpg',
+    heroImageUrl:
+      '/assets/aistudio/pexels-prosper-buka-1289782307-28736731_1eb2145c.jpg',
     menu: [
+      {
+        id: 'ct-breakfast',
+        restaurantId: 'chef-tunde-chops',
+        name: 'The Big Breakfast Box (Akara, Toast & Pap)',
+        description:
+          'Crispy golden akara, buttered toast, fluffy omelet egg, and rich milk-swirl pap.',
+        price: 3800,
+        category: 'Combos',
+        imageUrl:
+          '/assets/aistudio/pexels-prosper-buka-1289782307-28736731_1eb2145c.jpg',
+      },
+      {
+        id: 'ct-akara-pap',
+        restaurantId: 'chef-tunde-chops',
+        name: 'Hot Akara Box & Creamy Ogi Bowl',
+        description:
+          'Fresh bean cakes packed warm beside velvety yellow pap topped with evaporated milk.',
+        price: 2800,
+        category: 'Combos',
+        imageUrl:
+          '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37324436_10d34b52.jpg',
+      },
       {
         id: 'ct-puff',
         restaurantId: 'chef-tunde-chops',
-        name: 'Owambe Small Chops & Puff-Puff Tray',
+        name: 'Owambe Akara, Puff-Puff & Fried Yam',
         description:
-          'Warm golden puff-puff bites, crispy spring rolls, samosas, and peppered stick meat.',
-        price: 3500,
-        category: 'Combos',
-        imageUrl: '/src/assets/images/food_puff_puff_dessert_1795004109126.jpg',
+          'Warm crispy akara balls and golden fried yam slices ready for sharing.',
+        price: 2400,
+        category: 'Sides',
+        imageUrl:
+          '/assets/aistudio/pexels-finalchoice-147015110-40786356_312d796e.jpg',
       },
       {
-        id: 'ct-boli',
+        id: 'ct-feast',
         restaurantId: 'chef-tunde-chops',
-        name: 'Grilled Boli & Tilapia Combo',
+        name: 'Chef Tunde Party Feast Spread',
         description:
-          'Charcoal-grilled tilapia with sweet roasted plantains and pepper sauce.',
-        price: 4800,
-        category: 'Proteins',
-        imageUrl: '/src/assets/images/local_boli_fish_1795006182721.jpg',
+          'Jollof rice, stir-fry noodles, grilled chicken, curried meat rice, and dipping sauces.',
+        price: 6800,
+        category: 'Combos',
+        imageUrl: '/assets/aistudio/pexels-picswithjer-30246915_e571c980.jpg',
       },
       {
-        id: 'ct-burger',
+        id: 'ct-tigernut',
         restaurantId: 'chef-tunde-chops',
-        name: 'Double Suya Smash Burger',
+        name: 'Roasted Tiger Nuts (Aya) Snack Pack',
         description:
-          'Two seared beef patties, melted cheddar, yaji spice mayo, and toasted brioche bun.',
-        price: 4500,
-        category: 'Combos',
-        imageUrl: '/src/assets/images/food_smash_burger_1795004108289.jpg',
+          'Crunchy sweet Nigerian tiger nuts packed fresh for snacking or blending kunu aya.',
+        price: 1200,
+        category: 'Sides',
+        imageUrl:
+          '/assets/aistudio/pexels-muhammad-shehu-1718177362-28752786_40c90821.jpg',
       },
     ],
   },
@@ -393,7 +427,7 @@ export const INITIAL_ACTIVE_ORDER: ActiveOrder = {
   restaurantAddress: '14 Admiralty Way, Lekki Phase 1',
   destination: '22 Admiralty Way, Eti-Osa, Lagos',
   distanceKm: 0.9,
-  itemsSummary: '1x Smoky Party Jollof & Chicken, 1x Chilled Pineapple Zobo',
+  itemsSummary: '1x Smoky Party Jollof & Sweet Dodo, 1x Chilled Pineapple Zobo & Fruit Press',
   totalAmount: 4500,
   stage: 'on_the_way',
   etaMinutes: '12–16 mins',

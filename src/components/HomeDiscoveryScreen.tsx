@@ -23,6 +23,7 @@ import {
   getDistanceToRestaurant,
 } from '../data/deliveryData';
 import { AuthUser, FoodCategoryKey, Restaurant } from '../types/delivery';
+import { AccountPortalTab } from './AccountPortalModal';
 import { CategoryIllustration } from './CategoryIcons';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
 import { PlateImage } from './PlateImage';
@@ -37,7 +38,7 @@ interface HomeDiscoveryScreenProps {
   selectedRestaurantId: string;
   onSelectRestaurant: (restaurant: Restaurant) => void;
   onOpenOrders: () => void;
-  onOpenAccountPortal: (tab: 'buyer' | 'seller') => void;
+  onOpenAccountPortal: (tab: AccountPortalTab) => void;
   onOpenSidebar: () => void;
   activeOrderCount: number;
   overlayInset?: boolean;
@@ -753,22 +754,38 @@ export function HomeDiscoveryScreen({
       {isProfileOpen && (
         <div className={modalWrapperClass}>
           <div className={modalCardClass}>
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="font-display text-base font-bold text-[#1E1916]">
-                  {user.name}
-                </h3>
-                <p className="text-xs text-[#5C5049]">
-                  {user.phone} ·{' '}
-                  {user.role === 'seller'
-                    ? 'Seller Mode'
-                    : `Drop-off: ${location}`}
-                </p>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#F4E8D6] text-[#D9232E]">
+                  {user.avatarUrl ? (
+                    <PlateImage
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <User className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display truncate text-base font-bold text-[#1E1916]">
+                    {user.name}
+                  </h3>
+                  <p className="truncate text-xs text-[#5C5049]">
+                    {user.phone}
+                    {user.email ? ` · ${user.email}` : ''}
+                  </p>
+                  <p className="truncate text-[11px] font-medium text-[#D9232E]">
+                    {user.role === 'seller'
+                      ? 'Seller Mode'
+                      : `Drop-off: ${location}`}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsProfileOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FAF6F1] text-[#1E1916]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -779,11 +796,21 @@ export function HomeDiscoveryScreen({
                 type="button"
                 onClick={() => {
                   setIsProfileOpen(false);
-                  onOpenAccountPortal('buyer');
+                  onOpenAccountPortal('profile');
                 }}
                 className="min-h-[46px] w-full rounded-2xl bg-[#D9232E] text-sm font-semibold text-white transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
               >
-                Buyer Sign In &amp; Location
+                Edit My Profile &amp; Photo
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  onOpenAccountPortal('buyer');
+                }}
+                className="min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-white text-sm font-semibold text-[#1E1916]"
+              >
+                Switch Buyer / Delivery Address
               </button>
               <button
                 type="button"

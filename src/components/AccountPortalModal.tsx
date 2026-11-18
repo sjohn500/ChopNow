@@ -2,10 +2,13 @@ import {
   Camera,
   CheckCircle2,
   LogOut,
+  Mail,
   MapPin,
+  Pencil,
   Phone,
   RotateCcw,
   Store,
+  Trash2,
   Upload,
   User,
   X,
@@ -27,14 +30,27 @@ import { compressFoodPhoto, isValidNigerianPhone } from '../utils/image';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
 import { PlateImage } from './PlateImage';
 
+export type AccountPortalTab = 'buyer' | 'seller' | 'profile';
+
 interface AccountPortalModalProps {
   isOpen: boolean;
-  initialTab?: 'buyer' | 'seller';
+  isAuthenticated: boolean;
+  initialTab?: AccountPortalTab;
   user: AuthUser;
   restaurants: Restaurant[];
   activeOrder: ActiveOrder;
   onClose: () => void;
   onLogin: (user: AuthUser) => void;
+  onUpdateProfile: (
+    nextUser: AuthUser,
+    kitchenPatch?: {
+      id: string;
+      name: string;
+      address: string;
+      area: string;
+      categoryKey: Exclude<FoodCategoryKey, 'all'>;
+    }
+  ) => void;
   onCreateRestaurant: (input: {
     kitchenName: string;
     area: string;
@@ -52,6 +68,7 @@ interface AccountPortalModalProps {
     setAsCover: boolean;
   }) => void;
   onUpdateOrderStage: (stage: TrackingStage) => void;
+  onGoToFeed?: () => void;
   onResetDemo: () => void;
 }
 
@@ -76,28 +93,70 @@ const KITCHEN_CATEGORIES: {
 
 export function AccountPortalModal({
   isOpen,
+  isAuthenticated,
   initialTab,
   user,
   restaurants,
   activeOrder,
   onClose,
   onLogin,
+  onUpdateProfile,
   onCreateRestaurant,
   onPublishDish,
   onUpdateOrderStage,
+  onGoToFeed,
   onResetDemo,
 }: AccountPortalModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<'buyer' | 'seller'>(
-    initialTab ?? user.role
+  const resolvedInitialTab: AccountPortalTab =
+    !isAuthenticated && initialTab === 'profile'
+      ? 'buyer'
+      : (initialTab ?? user.role);
+
+  const [tab, setTab] = useState<AccountPortalTab>(resolvedInitialTab);
+
+  const [buyerName, setBuyerName] = useState(
+    isAuthenticated ? user.name : ''
+  );
+  const [buyerPhone, setBuyerPhone] = useState(
+    isAuthenticated ? user.phone : ''
+  );
+  const [buyerArea, setBuyerArea] = useState(user.buyerArea);
+  const [buyerLandmark, setBuyerLandmark] = useState(
+    isAuthenticated ? user.buyerLandmark : ''
+  );
+  const [isLocating, setIsLocating] = useState(false);
+
+  const isSellerLoggedIn =
+    isAuthenticated &&
+    user.role === 'seller' &&
+    Boolean(user.sellerRestaurantId);
+  const activeSellerKitchen = restaurants.find(
+    (r) => r.id === user.sellerRestaurantId
   );
 
-  const [buyerName, setBuyerName] = useState(user.name);
-  const [buyerPhone, setBuyerPhone] = useState(user.phone);
-  const [buyerArea, setBuyerArea] = useState(user.buyerArea);
-  const [buyerLandmark, setBuyerLandmark] = useState(user.buyerLandmark);
-  const [isLocating, setIsLocating] = useState(false);
+  const [profileName, setProfileName] = useState(user.name);
+  const [profilePhone, setProfilePhone] = useState(user.phone);
+  const [profileEmail, setProfileEmail] = useState(user.email ?? '');
+  const [profileAvatar, setProfileAvatar] = useState(user.avatarUrl ?? '');
+  const [profileArea, setProfileArea] = useState(user.buyerArea);
+  const [profileLandmark, setProfileLandmark] = useState(user.buyerLandmark);
+  const [isProcessingAvatar, setIsProcessingAvatar] = useState(false);
+
+  const [editKitchenName, setEditKitchenName] = useState(
+    activeSellerKitchen?.name ?? ''
+  );
+  const [editKitchenAddress, setEditKitchenAddress] = useState(
+    activeSellerKitchen?.address ?? ''
+  );
+  const [editKitchenArea, setEditKitchenArea] = useState(
+    activeSellerKitchen?.area ?? user.buyerArea
+  );
+  const [editKitchenCategory, setEditKitchenCategory] = useState<
+    Exclude<FoodCategoryKey, 'all'>
+  >(activeSellerKitchen?.categoryKey ?? 'jollof');
 
   const [sellerName, setSellerName] = useState(
     user.role === 'seller' ? user.name : 'Mrs. Folake Adeyemi'
@@ -129,13 +188,7 @@ export function AccountPortalModal({
 
   if (!isOpen) return null;
 
-  const isSellerLoggedIn =
-    user.role === 'seller' && Boolean(user.sellerRestaurantId);
-  const activeSellerKitchen = restaurants.find(
-    (r) => r.id === user.sellerRestaurantId
-  );
-
-  function handleUseGps() {
+  function handleUseGps(target: 'buyer' | 'profile' = 'buyer') {
     setError('');
     if (!('geolocation' in navigator)) {
       setError('GPS is unavailable on this browser. Choose your area manually.');
@@ -148,7 +201,11 @@ export function AccountPortalModal({
           pos.coords.latitude,
           pos.coords.longitude
         );
-        setBuyerArea(nearest);
+        if (target === 'profile') {
+          setProfileArea(nearest);
+        } else {
+          setBuyerArea(nearest);
+        }
         setIsLocating(false);
         setSuccessNote(`Matched your closest delivery zone: ${nearest}`);
       },
@@ -158,6 +215,94 @@ export function AccountPortalModal({
       },
       { timeout: 6000 }
     );
+  }
+
+  async function handleAvatarSelected(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setIsProcessingAvatar(true);
+    try {
+      const compressed = await compressFoodPhoto(file);
+      setProfileAvatar(compressed);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not process profile photo.'
+      );
+    } finally {
+      setIsProcessingAvatar(false);
+    }
+  }
+
+  function handleSaveProfile(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSuccessNote('');
+
+    if (profileName.trim().length < 2) {
+      setError('Enter your full name (at least 2 characters).');
+      return;
+    }
+    if (!isValidNigerianPhone(profilePhone)) {
+      setError('Enter a valid Nigerian phone number (e.g. 0805 112 9087).');
+      return;
+    }
+    if (
+      profileEmail.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileEmail.trim())
+    ) {
+      setError('Enter a valid email address or leave it blank.');
+      return;
+    }
+    if (profileLandmark.trim().length < 4) {
+      setError('Enter your street or nearby delivery landmark.');
+      return;
+    }
+
+    let kitchenPatch:
+      | {
+          id: string;
+          name: string;
+          address: string;
+          area: string;
+          categoryKey: Exclude<FoodCategoryKey, 'all'>;
+        }
+      | undefined;
+
+    if (isSellerLoggedIn && activeSellerKitchen) {
+      if (editKitchenName.trim().length < 3) {
+        setError('Enter your kitchen name (at least 3 characters).');
+        return;
+      }
+      if (editKitchenAddress.trim().length < 4) {
+        setError('Enter your kitchen street address.');
+        return;
+      }
+      kitchenPatch = {
+        id: activeSellerKitchen.id,
+        name: editKitchenName.trim(),
+        address: editKitchenAddress.trim(),
+        area: editKitchenArea,
+        categoryKey: editKitchenCategory,
+      };
+    }
+
+    const updatedUser: AuthUser = {
+      ...user,
+      name: profileName.trim(),
+      phone: profilePhone.trim(),
+      email: profileEmail.trim() || undefined,
+      avatarUrl: profileAvatar || undefined,
+      buyerArea: profileArea,
+      buyerLandmark: profileLandmark.trim(),
+    };
+
+    onUpdateProfile(updatedUser, kitchenPatch);
+    setBuyerName(updatedUser.name);
+    setBuyerPhone(updatedUser.phone);
+    setBuyerArea(updatedUser.buyerArea);
+    setBuyerLandmark(updatedUser.buyerLandmark);
+    setSuccessNote('Profile changes saved!');
   }
 
   function handleBuyerSignIn(e: FormEvent) {
@@ -179,6 +324,7 @@ export function AccountPortalModal({
     }
 
     onLogin({
+      ...user,
       name: buyerName.trim(),
       phone: buyerPhone.trim(),
       role: 'buyer',
@@ -221,10 +367,11 @@ export function AccountPortalModal({
         categoryKey: newKitchenType,
         coverImageUrl:
           restaurants[0]?.heroImageUrl ??
-          '/src/assets/images/plate_jollof_chicken_1795003763904.jpg',
+          '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
       });
 
       onLogin({
+        ...user,
         name: sellerName.trim(),
         phone: sellerPhone.trim(),
         role: 'seller',
@@ -242,6 +389,7 @@ export function AccountPortalModal({
 
     const chosen = restaurants.find((r) => r.id === selectedKitchenId);
     onLogin({
+      ...user,
       name: sellerName.trim(),
       phone: sellerPhone.trim(),
       role: 'seller',
@@ -348,10 +496,14 @@ export function AccountPortalModal({
               id="account-portal-title"
               className="font-display text-xl font-extrabold text-[#1E1916]"
             >
-              ChopBellyFull Account
+              {isAuthenticated
+                ? 'ChopBellyFull Account'
+                : 'Sign In or Sign Up'}
             </h2>
             <p className="mt-0.5 text-xs text-[#635850]">
-              Sign in as a Buyer to find kitchens close to you, or as a Seller to post food.
+              {isAuthenticated
+                ? 'Switch between Buyer & Seller or update your profile.'
+                : 'Sign in or create a free Buyer or Seller account first before exploring kitchens.'}
             </p>
           </div>
 
@@ -365,7 +517,11 @@ export function AccountPortalModal({
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-2xl bg-[#F3E7D3] p-1">
+        <div
+          className={`mt-4 grid gap-1 rounded-2xl bg-[#F3E7D3] p-1 ${
+            isAuthenticated ? 'grid-cols-3' : 'grid-cols-2'
+          }`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -373,14 +529,14 @@ export function AccountPortalModal({
               setError('');
               setSuccessNote('');
             }}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors ${
+            className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold whitespace-nowrap transition-colors sm:text-sm ${
               tab === 'buyer'
                 ? 'bg-white text-[#1E1916] shadow-xs'
                 : 'text-[#635850] hover:text-[#1E1916]'
             }`}
           >
-            <User className="h-4 w-4 text-[#D9232E]" />
-            Buyer Sign In
+            <User className="h-4 w-4 shrink-0 text-[#D9232E]" />
+            {isAuthenticated ? 'Buyer' : 'Buyer Sign Up / Login'}
           </button>
           <button
             type="button"
@@ -389,15 +545,33 @@ export function AccountPortalModal({
               setError('');
               setSuccessNote('');
             }}
-            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl text-sm font-bold transition-colors ${
+            className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold whitespace-nowrap transition-colors sm:text-sm ${
               tab === 'seller'
                 ? 'bg-white text-[#1E1916] shadow-xs'
                 : 'text-[#635850] hover:text-[#1E1916]'
             }`}
           >
-            <Store className="h-4 w-4 text-[#D9232E]" />
-            Seller Login &amp; Post
+            <Store className="h-4 w-4 shrink-0 text-[#D9232E]" />
+            {isAuthenticated ? 'Seller & Post' : 'Seller Login / Sign Up'}
           </button>
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => {
+                setTab('profile');
+                setError('');
+                setSuccessNote('');
+              }}
+              className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold whitespace-nowrap transition-colors sm:text-sm ${
+                tab === 'profile'
+                  ? 'bg-white text-[#1E1916] shadow-xs'
+                  : 'text-[#635850] hover:text-[#1E1916]'
+              }`}
+            >
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-[#D9232E]" />
+              Edit Profile
+            </button>
+          )}
         </div>
 
         {successNote && (
@@ -407,7 +581,245 @@ export function AccountPortalModal({
           </div>
         )}
 
-        {tab === 'buyer' ? (
+        {tab === 'profile' ? (
+          <form onSubmit={handleSaveProfile} className="mt-4 space-y-4">
+            <div className="soft-card-shadow space-y-4 rounded-[20px] bg-white p-4">
+              <div className="flex items-center gap-4">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarSelected}
+                  className="hidden"
+                />
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-[#F3E7D3] ring-2 ring-[#E6DDD3]">
+                  {profileAvatar ? (
+                    <PlateImage
+                      src={profileAvatar}
+                      alt={profileName || 'Profile avatar'}
+                      className="h-full w-full"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[#D9232E]">
+                      <User className="h-7 w-7" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="font-display truncate text-sm font-bold text-[#1E1916]">
+                    {profileName || user.name}
+                  </p>
+                  <p className="text-[11px] font-medium text-[#5C5049]">
+                    {user.role === 'seller'
+                      ? 'Seller & Kitchen Profile'
+                      : 'Buyer Profile'}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isProcessingAvatar}
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full bg-[#F3E7D3] px-3 text-xs font-bold text-[#1E1916] hover:bg-[#E8D5B7]"
+                    >
+                      <Camera className="h-3.5 w-3.5 text-[#D9232E]" />
+                      {isProcessingAvatar
+                        ? 'Uploading...'
+                        : profileAvatar
+                          ? 'Change Photo'
+                          : 'Upload Photo'}
+                    </button>
+                    {profileAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => setProfileAvatar('')}
+                        aria-label="Remove profile photo"
+                        className="inline-flex min-h-[34px] items-center gap-1 rounded-full bg-[#FAF6F1] px-2.5 text-xs font-semibold text-[#5C5049] hover:text-[#D9232E]"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="profile-name"
+                  className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                >
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#635850]" />
+                  <input
+                    id="profile-name"
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="Your full name"
+                    className="min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] pr-3.5 pl-10 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="profile-phone"
+                    className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                  >
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <Phone className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#635850]" />
+                    <input
+                      id="profile-phone"
+                      type="tel"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="0805 112 9087"
+                      className="tabular-nums-clean min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] pr-3.5 pl-10 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="profile-email"
+                    className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                  >
+                    Email Address (Optional)
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#635850]" />
+                    <input
+                      id="profile-email"
+                      type="email"
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] pr-3.5 pl-10 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <NigeriaLocationPicker
+                value={profileArea}
+                onChange={setProfileArea}
+                onUseGps={() => handleUseGps('profile')}
+                isLocating={isLocating}
+                label="Default Delivery State & LGA"
+              />
+
+              <div>
+                <label
+                  htmlFor="profile-landmark"
+                  className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                >
+                  Street / Delivery Landmark
+                </label>
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#635850]" />
+                  <input
+                    id="profile-landmark"
+                    type="text"
+                    value={profileLandmark}
+                    onChange={(e) => setProfileLandmark(e.target.value)}
+                    placeholder="e.g. 14 Admiralty Way, Lekki Phase 1"
+                    className="min-h-[46px] w-full rounded-2xl border border-[#E6DDD3] bg-[#FAF6F1] pr-3.5 pl-10 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {isSellerLoggedIn && activeSellerKitchen && (
+              <div className="soft-card-shadow space-y-3 rounded-[20px] bg-white p-4">
+                <p className="font-display text-sm font-bold text-[#1E1916]">
+                  Edit Kitchen Details
+                </p>
+                <div>
+                  <label
+                    htmlFor="edit-kitchen-name"
+                    className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                  >
+                    Kitchen Name
+                  </label>
+                  <input
+                    id="edit-kitchen-name"
+                    type="text"
+                    value={editKitchenName}
+                    onChange={(e) => setEditKitchenName(e.target.value)}
+                    className="min-h-[44px] w-full rounded-xl border border-[#E6DDD3] bg-[#FAF6F1] px-3.5 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="edit-kitchen-address"
+                    className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                  >
+                    Kitchen Street Address
+                  </label>
+                  <input
+                    id="edit-kitchen-address"
+                    type="text"
+                    value={editKitchenAddress}
+                    onChange={(e) => setEditKitchenAddress(e.target.value)}
+                    className="min-h-[44px] w-full rounded-xl border border-[#E6DDD3] bg-[#FAF6F1] px-3.5 text-sm text-[#1E1916] focus:ring-2 focus:ring-[#D9232E] focus:outline-none"
+                  />
+                </div>
+
+                <NigeriaLocationPicker
+                  value={editKitchenArea}
+                  onChange={setEditKitchenArea}
+                  compact
+                  label="Kitchen State & LGA"
+                />
+
+                <div>
+                  <label
+                    htmlFor="edit-kitchen-cat"
+                    className="mb-1 block text-xs font-semibold text-[#1E1916]"
+                  >
+                    Kitchen Specialty
+                  </label>
+                  <select
+                    id="edit-kitchen-cat"
+                    value={editKitchenCategory}
+                    onChange={(e) =>
+                      setEditKitchenCategory(
+                        e.target.value as Exclude<FoodCategoryKey, 'all'>
+                      )
+                    }
+                    className="min-h-[44px] w-full rounded-xl border border-[#E6DDD3] bg-[#FAF6F1] px-3 text-xs font-medium text-[#1E1916] focus:outline-none"
+                  >
+                    {KITCHEN_CATEGORIES.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p className="rounded-2xl bg-[#D9232E]/10 px-4 py-2.5 text-xs font-semibold text-[#9E141D]">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="min-h-[50px] w-full rounded-2xl bg-[#D9232E] text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
+            >
+              Save Profile Changes
+            </button>
+          </form>
+        ) : tab === 'buyer' ? (
           <form onSubmit={handleBuyerSignIn} className="mt-4 space-y-4">
             <div className="soft-card-shadow space-y-3.5 rounded-[20px] bg-white p-4">
               <div>
@@ -453,7 +865,7 @@ export function AccountPortalModal({
               <NigeriaLocationPicker
                 value={buyerArea}
                 onChange={setBuyerArea}
-                onUseGps={handleUseGps}
+                onUseGps={() => handleUseGps('buyer')}
                 isLocating={isLocating}
                 label="Your State & LGA (All 36 States + FCT)"
               />
@@ -489,8 +901,26 @@ export function AccountPortalModal({
               type="submit"
               className="min-h-[50px] w-full rounded-2xl bg-[#D9232E] text-sm font-bold text-[#FAF6F1] transition-colors hover:bg-[#b81c26] active:bg-[#9E141D]"
             >
-              Continue as Buyer · Show Nearby Kitchens
+              {isAuthenticated
+                ? 'Update Buyer Location & Continue'
+                : 'Sign Up / Login & Explore Kitchens'}
             </button>
+
+            {!isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBuyerName(user.name);
+                  setBuyerPhone(user.phone);
+                  setBuyerArea(user.buyerArea);
+                  setBuyerLandmark(user.buyerLandmark);
+                  setError('');
+                }}
+                className="min-h-[40px] w-full rounded-xl text-xs font-semibold text-[#5C5049] transition-colors hover:text-[#1E1916]"
+              >
+                Use sample details ({user.name} · {user.buyerArea})
+              </button>
+            )}
           </form>
         ) : !isSellerLoggedIn ? (
           <form onSubmit={handleSellerLogin} className="mt-4 space-y-4">
@@ -626,7 +1056,7 @@ export function AccountPortalModal({
           </form>
         ) : (
           <div className="mt-4 space-y-5">
-            <div className="soft-card-shadow flex items-center justify-between rounded-2xl bg-white px-4 py-3">
+            <div className="soft-card-shadow flex items-center justify-between gap-2 rounded-2xl bg-white px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-[#1E1916]">
                   {activeSellerKitchen?.name}
@@ -635,14 +1065,40 @@ export function AccountPortalModal({
                   {activeSellerKitchen?.address} · {activeSellerKitchen?.area}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleSwitchToBuyer}
-                className="inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-full bg-[#F3E7D3] px-3 text-xs font-semibold text-[#1E1916]"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                Buyer View
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {onGoToFeed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onGoToFeed();
+                    }}
+                    className="inline-flex min-h-[38px] items-center gap-1 rounded-full bg-[#D9232E] px-3 text-xs font-semibold text-white"
+                  >
+                    Live Feed
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab('profile');
+                    setError('');
+                    setSuccessNote('');
+                  }}
+                  className="inline-flex min-h-[38px] items-center gap-1 rounded-full border border-[#E6DDD3] bg-[#FAF6F1] px-3 text-xs font-semibold text-[#1E1916]"
+                >
+                  <Pencil className="h-3 w-3 text-[#D9232E]" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchToBuyer}
+                  className="inline-flex min-h-[38px] items-center gap-1 rounded-full bg-[#F3E7D3] px-3 text-xs font-semibold text-[#1E1916]"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Buyer View
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handlePublishDish} className="space-y-4">
@@ -701,6 +1157,46 @@ export function AccountPortalModal({
                     </span>
                   </button>
                 )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-[#5C5049]">
+                    Or quick-pick a kitchen photo:
+                  </span>
+                  {[
+                    {
+                      label: 'Jollof & Dodo',
+                      url: '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
+                    },
+                    {
+                      label: 'Ponmo & Efo',
+                      url: '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37648018_3ef90570.jpg',
+                    },
+                    {
+                      label: 'Akara & Pap',
+                      url: '/assets/aistudio/pexels-tochukwu-ekeh-2149052634-37324436_10d34b52.jpg',
+                    },
+                    {
+                      label: 'Dodo Skewers',
+                      url: '/assets/aistudio/pexels-ndagi-idris-2159907004-36458103_fd393f46.jpg',
+                    },
+                  ].map((sample) => (
+                    <button
+                      key={sample.label}
+                      type="button"
+                      onClick={() => {
+                        setDishPhotoUrl(sample.url);
+                        setError('');
+                      }}
+                      className={`min-h-[32px] rounded-full px-2.5 text-[11px] font-semibold transition-colors ${
+                        dishPhotoUrl === sample.url
+                          ? 'bg-[#1E1916] text-white'
+                          : 'bg-[#F3E7D3] text-[#1E1916] hover:bg-[#E8D5B7]'
+                      }`}
+                    >
+                      {sample.label}
+                    </button>
+                  ))}
+                </div>
 
                 <label className="mt-3 flex items-center gap-2 text-xs font-medium text-[#1E1916]">
                   <input

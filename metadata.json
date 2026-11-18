@@ -1,0 +1,8 @@
+{
+  "name": "ChopNow",
+  "description": "Local food marketplace connecting neighborhood kitchens and buyers for fresh homemade plates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

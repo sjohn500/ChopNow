@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+  }
+
+  html {
+    font-family: var(--font-body);
+    background-color: #faf6f1;
+    color: #1e1916;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+.tabular-nums-clean {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.soft-card-shadow {
+  box-shadow: 0px 8px 24px rgba(30, 25, 22, 0.06);
+}
+
+.floating-bar-shadow {
+  box-shadow: 0px 12px 28px rgba(30, 25, 22, 0.14);
+}

@@ -50,6 +50,8 @@ interface HomeDiscoveryScreenProps {
   layoutMode?: 'frame' | 'responsive';
 }
 
+const HOME_BG_IMAGE = '/images/home-bg.jpeg';
+
 const FEED_CHIPS: {
   key: FoodCategoryKey;
   label: string;
@@ -115,7 +117,10 @@ function itemMatchesFeedCategory(
         lower.includes('drink')
       );
     case 'pepper_soup':
-      return lower.includes('pepper soup') || restaurant.categoryKey === 'pepper_soup';
+      return (
+        lower.includes('pepper soup') ||
+        restaurant.categoryKey === 'pepper_soup'
+      );
   }
 }
 
@@ -140,6 +145,7 @@ export function HomeDiscoveryScreen({
   const [isLocating, setIsLocating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeBottomNav, setActiveBottomNav] = useState<BottomNavItem>('home');
+  const [bgImgFailed, setBgImgFailed] = useState(false);
 
   const isResponsive = layoutMode === 'responsive';
   const firstName = user.name.split(' ')[0] || 'Friend';
@@ -210,66 +216,104 @@ export function HomeDiscoveryScreen({
     : 'max-h-[82%] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8';
 
   return (
-    <div className="relative flex h-full flex-col bg-bg">
+    <div className="relative flex h-full flex-col overflow-hidden bg-bg">
+      {/* Full-height warm ambient homepage wallpaper */}
+      {!bgImgFailed && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <img
+            src={HOME_BG_IMAGE}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={() => setBgImgFailed(true)}
+            className="h-full w-full object-cover object-center opacity-25"
+          />
+          <div className="absolute inset-0 bg-bg/75" />
+        </div>
+      )}
+
       <div
-        className={`no-scrollbar flex-1 overflow-y-auto ${
+        className={`no-scrollbar relative z-10 flex-1 overflow-y-auto ${
           isResponsive
             ? 'px-4 pt-4 pb-24 md:px-6 md:pt-6 md:pb-12 lg:px-8'
             : `px-4 pb-24 ${overlayInset ? 'pt-12' : 'pt-3'}`
         }`}
       >
         <div className={isResponsive ? 'mx-auto max-w-6xl' : ''}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-text-secondary">
-                How far, {firstName}? Ready to eat?
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsLocationOpen(true)}
-                className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-left text-sm font-bold text-text-primary transition-colors hover:text-primary md:text-base"
-              >
-                <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                <span className="truncate">{location}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRefreshFeed}
-                aria-label="Refresh home food feed"
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-soft transition-transform duration-150 hover:-translate-y-0.5 active:scale-95"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-primary' : ''}`}
-                />
-              </button>
-              {isResponsive && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => onNavigateScreen('post')}
-                  className="hidden md:inline-flex"
-                >
-                  Post Food
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Input
-              ref={searchInputRef}
-              type="search"
-              value={searchQuery}
-              onFocus={() => setActiveBottomNav('search')}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search Jollof, Egusi, Suya, Akara or kitchen..."
-              aria-label="Search food plates or sellers"
-              icon={<Search className="h-4 w-4 text-primary" />}
+          {/* Rich warm discovery banner */}
+          <div className="relative overflow-hidden rounded-[20px] bg-[#1E140E] p-4 text-white shadow-lg md:p-6">
+            {!bgImgFailed && (
+              <img
+                src={HOME_BG_IMAGE}
+                alt=""
+                aria-hidden="true"
+                referrerPolicy="no-referrer"
+                onError={() => setBgImgFailed(true)}
+                className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center"
+              />
+            )}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#160E09]/85 via-[#24160D]/68 to-[#160E09]/82"
             />
+
+            <div className="relative z-10">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-white/80">
+                    How far, {firstName}? Ready to eat?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsLocationOpen(true)}
+                    className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-left text-sm font-bold text-white transition-colors hover:text-accent md:text-base"
+                  >
+                    <MapPin className="h-4 w-4 shrink-0 text-accent" />
+                    <span className="truncate">{location}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-accent" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRefreshFeed}
+                    aria-label="Refresh home food feed"
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/20 bg-white/15 text-white backdrop-blur-sm transition-transform duration-150 hover:-translate-y-0.5 hover:bg-white/25 active:scale-95"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-accent' : ''}`}
+                    />
+                  </button>
+                  {isResponsive && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onNavigateScreen('post')}
+                      className="hidden md:inline-flex"
+                    >
+                      Post Food
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <Input
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                  onFocus={() => setActiveBottomNav('search')}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search Jollof, Egusi, Suya, Akara or kitchen..."
+                  aria-label="Search food plates or sellers"
+                  className="border-white/25 bg-white text-text-primary shadow-md placeholder:text-text-secondary"
+                  icon={<Search className="h-4 w-4 text-primary" />}
+                />
+              </div>
+            </div>
           </div>
 
           <div
@@ -289,7 +333,7 @@ export function HomeDiscoveryScreen({
                   onClick={() => onChangeCategory(chip.key)}
                   className={`min-h-[40px] shrink-0 cursor-pointer rounded-full px-4 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
                     isSelected
-                      ? 'bg-primary-soft text-primary-dark ring-1 ring-primary'
+                      ? 'bg-primary text-white shadow-sm'
                       : 'border border-border-soft bg-surface text-text-secondary hover:bg-primary-soft/50 hover:text-text-primary'
                   }`}
                 >
@@ -373,7 +417,8 @@ export function HomeDiscoveryScreen({
             >
               {feedPlates.map(({ item, restaurant, distanceKm }, index) => {
                 const isAvailable = item.isAvailable !== false;
-                const isRealOrderable = isUuid(item.id) && isUuid(restaurant.id);
+                const isRealOrderable =
+                  isUuid(item.id) && isUuid(restaurant.id);
                 const ratingValue = item.rating ?? restaurant.rating;
 
                 return (

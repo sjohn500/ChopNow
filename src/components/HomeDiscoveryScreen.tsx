@@ -14,6 +14,7 @@ import {
   formatNaira,
   getDistanceToRestaurant,
 } from '../data/deliveryData';
+import { isUuid } from '../lib/orders';
 import {
   AuthUser,
   FoodCategoryKey,
@@ -42,6 +43,7 @@ interface HomeDiscoveryScreenProps {
   onChangeLocation: (loc: string) => void;
   onSelectRestaurant: (restaurant: Restaurant) => void;
   onOrderPlate: (restaurant: Restaurant, item: MenuItem) => void;
+  onRefresh?: () => Promise<void>;
   onNavigateScreen: (screen: ScreenId) => void;
   activeOrderCount: number;
   overlayInset?: boolean;
@@ -80,6 +82,7 @@ function itemMatchesFeedCategory(
         item.category === 'Swallows' ||
         lower.includes('soup') ||
         lower.includes('egusi') ||
+        lower.includes('fufu') ||
         lower.includes('efo') ||
         lower.includes('amala') ||
         lower.includes('ponmo') ||
@@ -125,6 +128,7 @@ export function HomeDiscoveryScreen({
   onChangeLocation,
   onSelectRestaurant,
   onOrderPlate,
+  onRefresh,
   onNavigateScreen,
   activeOrderCount,
   overlayInset = false,
@@ -171,11 +175,15 @@ export function HomeDiscoveryScreen({
     return list.sort((a, b) => a.distanceKm - b.distanceKm);
   }, [restaurants, location, activeCategory, searchQuery]);
 
-  function handleRefreshFeed() {
+  async function handleRefreshFeed() {
     setIsRefreshing(true);
-    window.setTimeout(() => {
-      setIsRefreshing(false);
-    }, 450);
+    try {
+      await onRefresh?.();
+    } finally {
+      window.setTimeout(() => {
+        setIsRefreshing(false);
+      }, 300);
+    }
   }
 
   function handleBottomNavSelect(nav: BottomNavItem) {
@@ -365,6 +373,7 @@ export function HomeDiscoveryScreen({
             >
               {feedPlates.map(({ item, restaurant, distanceKm }, index) => {
                 const isAvailable = item.isAvailable !== false;
+                const isRealOrderable = isUuid(item.id) && isUuid(restaurant.id);
                 const ratingValue = item.rating ?? restaurant.rating;
 
                 return (
@@ -447,10 +456,14 @@ export function HomeDiscoveryScreen({
                           <Button
                             type="button"
                             size="sm"
-                            disabled={!isAvailable}
+                            disabled={!isAvailable || !isRealOrderable}
                             onClick={() => onOrderPlate(restaurant, item)}
                           >
-                            {isAvailable ? 'Order' : 'Sold Out'}
+                            {!isAvailable
+                              ? 'Sold Out'
+                              : isRealOrderable
+                                ? 'Order'
+                                : 'Sample'}
                           </Button>
                         </div>
                       </div>

@@ -6,16 +6,18 @@ import {
   Minus,
   Navigation,
   Plus,
+  ShieldCheck,
   ShoppingBag,
   Star,
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatNaira, getDistanceToRestaurant } from '../data/deliveryData';
+import { isUuid } from '../lib/orders';
 import { AuthUser, CartEntry, MenuItem, Restaurant } from '../types/delivery';
 import { PlateImage } from './PlateImage';
-import { Badge, Button, Card, EmptyState } from './ui';
+import { Badge, Button, Card, EmptyState, Input } from './ui';
 
 interface RestaurantMenuScreenProps {
   restaurant: Restaurant;
@@ -27,16 +29,17 @@ interface RestaurantMenuScreenProps {
   onDecrementItem: (itemId: string) => void;
   onTrackKitchenLocation: (restaurant: Restaurant) => void;
   onEditProfile: () => void;
-  onCheckoutConfirm: (paymentMethod: string) => void;
+  onStartPaystackCheckout: (buyer: {
+    name: string;
+    phone: string;
+    deliveryAddress: string;
+  }) => Promise<void>;
   layoutMode?: 'frame' | 'responsive';
 }
 
-const MENU_TABS: MenuItem['category'][] = [
-  'Combos',
-  'Swallows',
-  'Proteins',
-  'Sides',
-];
+type MenuTab = 'All' | MenuItem['category'];
+
+const MENU_TABS: MenuTab[] = ['All', 'Combos', 'Swallows', 'Proteins', 'Sides'];
 
 export function RestaurantMenuScreen({
   restaurant,
@@ -48,19 +51,40 @@ export function RestaurantMenuScreen({
   onDecrementItem,
   onTrackKitchenLocation,
   onEditProfile,
-  onCheckoutConfirm,
+  onStartPaystackCheckout,
   layoutMode = 'frame',
 }: RestaurantMenuScreenProps) {
   const [isFavorite, setIsFavorite] = useState(true);
-  const [activeTab, setActiveTab] = useState<MenuItem['category']>('Combos');
+  const [activeTab, setActiveTab] = useState<MenuTab>('All');
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState(
-    'Paystack Card •••• 4242'
+
+  const [buyerName, setBuyerName] = useState(user.name);
+  const [buyerPhone, setBuyerPhone] = useState(user.phone);
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    user.buyerLandmark ? `${user.buyerLandmark}, ${buyerLocation}` : buyerLocation
   );
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
+
+  useEffect(() => {
+    setBuyerName(user.name);
+    setBuyerPhone(user.phone);
+    setDeliveryAddress(
+      user.buyerLandmark
+        ? `${user.buyerLandmark}, ${buyerLocation}`
+        : buyerLocation
+    );
+  }, [user.name, user.phone, user.buyerLandmark, buyerLocation]);
+
   const isResponsive = layoutMode === 'responsive';
   const distanceKm = getDistanceToRestaurant(buyerLocation, restaurant);
+  const isRealKitchen = isUuid(restaurant.id);
+  const isOwnKitchen =
+    Boolean(user.sellerRestaurantId) &&
+    user.sellerRestaurantId === restaurant.id;
 
   const visibleItems = useMemo(() => {
+    if (activeTab === 'All') return restaurant.menu;
     return restaurant.menu.filter((item) => item.category === activeTab);
   }, [restaurant.menu, activeTab]);
 
@@ -73,6 +97,48 @@ export function RestaurantMenuScreen({
 
   function getQuantity(itemId: string): number {
     return cart.find((c) => c.item.id === itemId)?.quantity ?? 0;
+  }
+
+  async function handleCheckoutClick() {
+    if (checkoutLoading) return;
+    setCheckoutError('');
+
+    if (!isRealKitchen) {
+      setCheckoutError('Sample kitchens cannot receive real orders.');
+      return;
+    }
+    if (isOwnKitchen) {
+      setCheckoutError(
+        "You can't order your own food. Sign in as a Buyer in another window to test checkout."
+      );
+      return;
+    }
+    if (buyerName.trim().length < 2) {
+      setCheckoutError('Enter your name (at least 2 characters).');
+      return;
+    }
+    if (!/^(\+?234|0)\d{10}$/.test(buyerPhone.replace(/[\s-]/g, ''))) {
+      setCheckoutError('Enter a valid Nigerian phone number (e.g. 0805 112 9087).');
+      return;
+    }
+    if (deliveryAddress.trim().length < 5) {
+      setCheckoutError('Enter a full delivery street address or landmark.');
+      return;
+    }
+
+    setCheckoutLoading(true);
+    try {
+      await onStartPaystackCheckout({
+        name: buyerName.trim(),
+        phone: buyerPhone.trim(),
+        deliveryAddress: deliveryAddress.trim(),
+      });
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : 'Could not start Paystack payment.'
+      );
+      setCheckoutLoading(false);
+    }
   }
 
   const trayBreakdownContent = (closeOnChange?: () => void) => (
@@ -110,7 +176,7 @@ export function RestaurantMenuScreen({
                     type="button"
                     aria-label={`Remove one ${item.name}`}
                     onClick={() => onDecrementItem(item.id)}
-                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-surface text-xs font-bold text-text-primary transition-colors hover:bg-primary-soft"
+                    className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary transition-colors hover:bg-primary-soft"
                   >
                     -
                   </button>
@@ -127,10 +193,10 @@ export function RestaurantMenuScreen({
             ))}
           </div>
 
-          <div className="mt-4 rounded-[14px] border border-border-soft bg-bg p-3.5">
+          <div className="mt-4 space-y-2.5 rounded-[14px] border border-border-soft bg-bg p-3.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-text-secondary">
-                Delivering to ({user.name})
+                Delivery Details · {distanceKm} km away
               </span>
               <button
                 type="button"
@@ -140,37 +206,45 @@ export function RestaurantMenuScreen({
                 }}
                 className="cursor-pointer text-xs font-semibold text-primary transition-colors hover:text-primary-dark"
               >
-                Change
+                Edit Profile
               </button>
             </div>
-            <p className="mt-1 text-xs font-semibold text-text-primary">
-              {user.buyerLandmark} · {buyerLocation}
-            </p>
-            <p className="tabular-nums-clean mt-0.5 text-xs text-text-secondary">
-              {user.phone} · {distanceKm} km from {restaurant.name}
-            </p>
+
+            <Input
+              id="tray-buyer-name"
+              label="Your Name"
+              type="text"
+              value={buyerName}
+              onChange={(e) => setBuyerName(e.target.value)}
+              placeholder="e.g. Tunde Adewale"
+            />
+            <Input
+              id="tray-buyer-phone"
+              label="Phone Number"
+              type="tel"
+              value={buyerPhone}
+              onChange={(e) => setBuyerPhone(e.target.value)}
+              placeholder="0805 112 9087"
+              className="tabular-nums-clean"
+            />
+            <Input
+              id="tray-delivery-address"
+              label="Delivery Street / Landmark"
+              type="text"
+              value={deliveryAddress}
+              onChange={(e) => setDeliveryAddress(e.target.value)}
+              placeholder="Street address & landmark"
+            />
           </div>
 
-          <div className="mt-4">
-            <p className="mb-1.5 text-xs font-semibold text-text-secondary">
-              Payment Method
+          <div className="mt-4 rounded-[12px] bg-primary-soft/60 px-3.5 py-2.5 text-xs font-medium text-text-primary">
+            <p className="flex items-center gap-1.5 font-semibold text-primary-dark">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+              Pay securely with Paystack
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {['Paystack Card •••• 4242', 'Cash on Delivery'].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setPaymentMethod(m)}
-                  className={`min-h-[42px] cursor-pointer rounded-[12px] px-2.5 text-xs font-semibold transition-all duration-150 ${
-                    paymentMethod === m
-                      ? 'bg-primary-soft text-primary ring-1 ring-primary'
-                      : 'bg-bg text-text-primary hover:bg-primary-soft/50'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+            <p className="mt-0.5 text-[11px] text-text-secondary">
+              Supports Card, Bank Transfer, OPay, PalmPay &amp; USSD.
+            </p>
           </div>
 
           <div className="mt-4 space-y-1.5 border-t border-border-soft pt-3 text-xs">
@@ -202,17 +276,25 @@ export function RestaurantMenuScreen({
             </div>
           </div>
 
+          {checkoutError && (
+            <div className="mt-3 rounded-[12px] bg-error/10 px-3.5 py-2.5 text-xs font-semibold text-error">
+              {checkoutError}
+            </div>
+          )}
+
           <Button
             type="button"
             fullWidth
             size="lg"
             className="mt-4"
-            onClick={() => {
-              closeOnChange?.();
-              onCheckoutConfirm(paymentMethod);
-            }}
+            disabled={checkoutLoading || isOwnKitchen || !isRealKitchen}
+            onClick={handleCheckoutClick}
           >
-            Place Order · {formatNaira(finalTotal)}
+            {checkoutLoading
+              ? 'Opening Paystack...'
+              : isOwnKitchen
+                ? 'Your Own Kitchen'
+                : `Pay with Paystack · ${formatNaira(finalTotal)}`}
           </Button>
         </>
       )}
@@ -293,9 +375,6 @@ export function RestaurantMenuScreen({
                   <span className="tabular-nums-clean">
                     {restaurant.rating.toFixed(1)}
                   </span>
-                  <span className="font-normal text-text-secondary">
-                    ({restaurant.reviewCount}+)
-                  </span>
                 </Badge>
               </div>
 
@@ -323,6 +402,13 @@ export function RestaurantMenuScreen({
                 <Badge variant="success">Available</Badge>
               </div>
 
+              {isOwnKitchen && (
+                <div className="mt-3 rounded-[12px] bg-primary-soft/70 px-3.5 py-2 text-xs font-semibold text-primary-dark">
+                  This is your kitchen. Open an Incognito window with a Buyer
+                  account to test ordering from it.
+                </div>
+              )}
+
               <div className="mt-3.5 flex items-center justify-between gap-2 rounded-[14px] border border-border-soft bg-bg px-3.5 py-2.5">
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
@@ -340,7 +426,7 @@ export function RestaurantMenuScreen({
                   onClick={() => onTrackKitchenLocation(restaurant)}
                 >
                   <Navigation className="h-3.5 w-3.5 text-primary" />
-                  Map
+                  Orders
                 </Button>
               </div>
             </div>
@@ -386,8 +472,12 @@ export function RestaurantMenuScreen({
               {visibleItems.length === 0 ? (
                 <EmptyState
                   emoji="🍲"
-                  title={`No dishes in ${activeTab} yet`}
-                  description="Switch to another category tab or post a fresh dish to this kitchen."
+                  title={
+                    activeTab === 'All'
+                      ? 'No dishes posted in this kitchen yet'
+                      : `No dishes in ${activeTab} yet`
+                  }
+                  description="Switch to All or another category tab to see available plates."
                 />
               ) : (
                 <div
@@ -400,6 +490,7 @@ export function RestaurantMenuScreen({
                   {visibleItems.map((item) => {
                     const qty = getQuantity(item.id);
                     const isUnavailable = item.isAvailable === false;
+                    const isRealItem = isUuid(item.id) && isRealKitchen;
                     return (
                       <Card
                         key={item.id}
@@ -432,6 +523,10 @@ export function RestaurantMenuScreen({
                             {isUnavailable ? (
                               <span className="text-xs font-semibold text-error">
                                 Unavailable
+                              </span>
+                            ) : !isRealItem ? (
+                              <span className="text-xs font-semibold text-text-secondary">
+                                Sample
                               </span>
                             ) : qty === 0 ? (
                               <button

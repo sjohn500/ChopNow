@@ -1,5 +1,7 @@
 import {
   ArrowLeft,
+  Lock,
+  Mail,
   MapPin,
   Phone,
   Store,
@@ -8,175 +10,173 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FormEvent, useState } from 'react';
-import { findNearestDeliveryArea } from '../data/deliveryData';
-import { AuthUser, FoodCategoryKey, Restaurant, UserRole } from '../types/delivery';
-import { isValidNigerianPhone } from '../utils/image';
+import { saveMyKitchen, signInWithEmail, signUpWithEmail } from '../lib/auth';
+import { loadSessionUser } from '../lib/marketplace';
+import { supabase } from '../lib/supabase';
+import { AuthUser, FoodCategoryKey, UserRole } from '../types/delivery';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
-import { Badge, Button, Card, Input, Select } from './ui';
+import { Button, Card, Input, Select } from './ui';
 
 interface AuthScreenProps {
-  initialRole?: UserRole;
+  initialRole: UserRole;
   user: AuthUser;
-  restaurants: Restaurant[];
-  promptMessage?: string | null;
-  onLogin: (nextUser: AuthUser) => void;
-  onCreateRestaurant: (input: {
-    kitchenName: string;
-    area: string;
-    address: string;
-    categoryKey: Exclude<FoodCategoryKey, 'all'>;
-    coverImageUrl: string;
-  }) => Restaurant;
+  promptMessage: string | null;
+  onLogin: (user: AuthUser) => void;
   onBackToLanding?: () => void;
 }
 
-const KITCHEN_CATEGORIES: {
-  key: Exclude<FoodCategoryKey, 'all'>;
-  label: string;
-}[] = [
-  { key: 'jollof', label: 'Rice & Jollof' },
-  { key: 'swallows', label: 'Soups & Swallows' },
+type CategoryKey = Exclude<FoodCategoryKey, 'all'>;
+
+const KITCHEN_CATEGORIES: { key: CategoryKey; label: string }[] = [
+  { key: 'jollof', label: 'Jollof & Rice' },
+  { key: 'swallows', label: 'Swallows & Soups' },
   { key: 'suya', label: 'Suya & Grills' },
-  { key: 'small_chops', label: 'Snacks & Small Chops' },
+  { key: 'small_chops', label: 'Small Chops' },
   { key: 'pepper_soup', label: 'Pepper Soup' },
   { key: 'drinks', label: 'Drinks' },
 ];
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidNigerianPhone(value: string) {
+  return /^(\+?234|0)\d{10}$/.test(value.replace(/[\s-]/g, ''));
+}
+
 export function AuthScreen({
-  initialRole = 'buyer',
+  initialRole,
   user,
-  restaurants,
   promptMessage,
   onLogin,
-  onCreateRestaurant,
   onBackToLanding,
 }: AuthScreenProps) {
+  const [mode, setMode] = useState<'signup' | 'signin'>('signup');
   const [role, setRole] = useState<UserRole>(initialRole);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [area, setArea] = useState(user.buyerArea || 'Eti-Osa, Lagos');
   const [landmark, setLandmark] = useState('');
-  const [selectedKitchenId, setSelectedKitchenId] = useState(
-    user.sellerRestaurantId ?? restaurants[0]?.id ?? ''
-  );
-  const [isNewKitchen, setIsNewKitchen] = useState(false);
-  const [newKitchenName, setNewKitchenName] = useState('');
-  const [newKitchenAddress, setNewKitchenAddress] = useState('');
-  const [newKitchenCategory, setNewKitchenCategory] =
-    useState<Exclude<FoodCategoryKey, 'all'>>('jollof');
-  const [isLocating, setIsLocating] = useState(false);
+  const [kitchenName, setKitchenName] = useState('');
+  const [kitchenAddress, setKitchenAddress] = useState('');
+  const [kitchenCategory, setKitchenCategory] = useState<CategoryKey>('jollof');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  function handleUseGps() {
-    setError('');
-    if (!('geolocation' in navigator)) {
-      setError('GPS is unavailable on this browser. Pick your area below.');
-      return;
-    }
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const nearest = findNearestDeliveryArea(
-          pos.coords.latitude,
-          pos.coords.longitude
-        );
-        setArea(nearest);
-        setIsLocating(false);
-      },
-      () => {
-        setIsLocating(false);
-        setError('Could not access GPS permission. Pick your delivery area below.');
-      },
-      { timeout: 6000 }
-    );
-  }
-
-  function handleFillSample() {
-    setError('');
-    if (role === 'buyer') {
-      setName(user.name || 'Tunde Adewale');
-      setPhone(user.phone || '0805 112 9087');
-      setArea(user.buyerArea || 'Eti-Osa, Lagos');
-      setLandmark(user.buyerLandmark || '22 Admiralty Way, Lekki Phase 1');
-    } else {
-      setName('Mrs. Folake Adeyemi');
-      setPhone('0803 412 8890');
-      setArea('Eti-Osa, Lagos');
-      setLandmark('14 Admiralty Way, Lekki Phase 1');
-    }
-  }
-
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError('');
+    setInfo('');
 
-    if (name.trim().length < 2) {
-      setError('Please enter your name (at least 2 characters).');
+    if (!EMAIL_RE.test(email.trim())) {
+      setError('Enter a valid email address.');
       return;
     }
-    if (!isValidNigerianPhone(phone)) {
-      setError('Enter a valid Nigerian phone number (e.g. 0805 112 9087).');
+    if (password.length < 8) {
+      setError('Your password must be at least 8 characters.');
       return;
     }
 
-    if (role === 'buyer') {
-      if (landmark.trim().length < 4) {
+    if (mode === 'signup') {
+      if (name.trim().length < 2) {
+        setError('Please enter your name (at least 2 characters).');
+        return;
+      }
+      if (!isValidNigerianPhone(phone)) {
+        setError('Enter a valid Nigerian phone number (e.g. 0805 112 9087).');
+        return;
+      }
+      if (role === 'buyer' && landmark.trim().length < 4) {
         setError('Enter your street or nearby delivery landmark.');
         return;
       }
-      onLogin({
-        ...user,
-        name: name.trim(),
-        phone: phone.trim(),
-        role: 'buyer',
-        buyerArea: area,
-        buyerLandmark: landmark.trim(),
-        sellerRestaurantId: undefined,
-      });
-      return;
+      if (role === 'seller') {
+        if (kitchenName.trim().length < 3) {
+          setError('Enter your kitchen name (at least 3 characters).');
+          return;
+        }
+        if (kitchenAddress.trim().length < 4) {
+          setError('Enter your kitchen street address.');
+          return;
+        }
+      }
     }
 
-    if (isNewKitchen) {
-      if (newKitchenName.trim().length < 3) {
-        setError('Enter your kitchen name (at least 3 characters).');
-        return;
-      }
-      if (newKitchenAddress.trim().length < 4) {
-        setError('Enter your kitchen street address.');
-        return;
-      }
-      const created = onCreateRestaurant({
-        kitchenName: newKitchenName.trim(),
-        area,
-        address: newKitchenAddress.trim(),
-        categoryKey: newKitchenCategory,
-        coverImageUrl:
-          restaurants[0]?.heroImageUrl ??
-          '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg',
-      });
-      onLogin({
-        ...user,
-        name: name.trim(),
-        phone: phone.trim(),
-        role: 'seller',
-        buyerArea: area,
-        buyerLandmark: newKitchenAddress.trim(),
-        sellerRestaurantId: created.id,
-      });
-      return;
-    }
+    setLoading(true);
+    try {
+      if (mode === 'signin') {
+        await signInWithEmail(email, password);
+      } else {
+        const result = await signUpWithEmail({
+          email,
+          password,
+          fullName: name,
+          phone,
+        });
 
-    const chosen = restaurants.find((r) => r.id === selectedKitchenId);
-    onLogin({
-      ...user,
-      name: name.trim(),
-      phone: phone.trim(),
-      role: 'seller',
-      buyerArea: chosen?.area ?? area,
-      buyerLandmark: chosen?.address ?? (landmark.trim() || 'Main Kitchen Pickup'),
-      sellerRestaurantId: selectedKitchenId,
-    });
+        if (result.needsEmailConfirmation) {
+          setMode('signin');
+          setInfo(
+            'Account created! Open the confirmation link we emailed you, then sign in here.'
+          );
+          return;
+        }
+
+        if (role === 'seller') {
+          const {
+            data: { user: authUser },
+          } = await supabase.auth.getUser();
+          if (!authUser) {
+            throw new Error(
+              'Account created, but we could not set up your kitchen. Please sign in and try again.'
+            );
+          }
+          try {
+            await saveMyKitchen(authUser.id, {
+              business_name: kitchenName.trim(),
+              area,
+              address: kitchenAddress.trim(),
+              category: kitchenCategory,
+            });
+          } catch (kitchenErr) {
+            const reason =
+              kitchenErr instanceof Error ? kitchenErr.message : 'unknown error';
+            throw new Error(
+              `Your account was created, but your kitchen could not be saved (${reason}).`
+            );
+          }
+        }
+      }
+
+      const base: AuthUser =
+        mode === 'signup'
+          ? {
+              ...user,
+              buyerArea: area,
+              buyerLandmark:
+                role === 'buyer' ? landmark.trim() : kitchenAddress.trim(),
+            }
+          : user;
+
+      const sessionUser = await loadSessionUser(base);
+      if (!sessionUser) {
+        throw new Error('Could not sign you in. Please try again.');
+      }
+      onLogin(sessionUser);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const isSignup = mode === 'signup';
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-bg px-4 py-8">
@@ -202,83 +202,101 @@ export function AuthScreen({
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-soft text-primary">
                 <UtensilsCrossed className="h-6 w-6" />
               </div>
-
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <h1 className="font-heading text-2xl font-bold text-text-primary">
-                  Welcome to ChopBellyFull
-                </h1>
-              </div>
-
+              <h1 className="font-heading mt-3 text-2xl font-bold text-text-primary">
+                {isSignup ? 'Create your account' : 'Welcome back'}
+              </h1>
               <p className="mt-1.5 text-sm text-text-secondary">
                 {promptMessage ||
-                  'Sign in or create a free account to order homemade meals or sell from your kitchen.'}
+                  (isSignup
+                    ? 'Order homemade meals or sell from your kitchen.'
+                    : 'Sign in to order or manage your kitchen.')}
               </p>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-1.5 rounded-full bg-bg p-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setRole('buyer');
-                  setError('');
-                }}
-                className={`flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                  role === 'buyer'
-                    ? 'bg-primary text-white shadow-soft'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <User className="h-4 w-4 shrink-0" />
-                I&apos;m a Buyer
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRole('seller');
-                  setError('');
-                }}
-                className={`flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
-                  role === 'seller'
-                    ? 'bg-primary text-white shadow-soft'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                <Store className="h-4 w-4 shrink-0" />
-                I&apos;m a Seller
-              </button>
-            </div>
+            {isSignup && (
+              <div className="mt-5 grid grid-cols-2 gap-1.5 rounded-full bg-bg p-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole('buyer');
+                    setError('');
+                  }}
+                  className={`flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    role === 'buyer'
+                      ? 'bg-primary text-white shadow-soft'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <User className="h-4 w-4 shrink-0" />
+                  I&apos;m a Buyer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole('seller');
+                    setError('');
+                  }}
+                  className={`flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    role === 'seller'
+                      ? 'bg-primary text-white shadow-soft'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <Store className="h-4 w-4 shrink-0" />
+                  I&apos;m a Seller
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-              <Input
-                id="auth-name"
-                label={role === 'seller' ? 'Seller Name' : 'Full Name'}
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={
-                  role === 'seller' ? 'e.g. Mrs. Folake Adeyemi' : 'e.g. Tunde Adewale'
-                }
-                icon={<User className="h-4 w-4" />}
-              />
+              {isSignup && (
+                <>
+                  <Input
+                    id="auth-name"
+                    label="Full Name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Tunde Adewale"
+                    icon={<User className="h-4 w-4" />}
+                  />
+                  <Input
+                    id="auth-phone"
+                    label="Nigerian Phone Number"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="0805 112 9087"
+                    icon={<Phone className="h-4 w-4" />}
+                    className="tabular-nums-clean"
+                  />
+                </>
+              )}
 
               <Input
-                id="auth-phone"
-                label="Nigerian Phone Number"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="0805 112 9087"
-                icon={<Phone className="h-4 w-4" />}
-                className="tabular-nums-clean"
+                id="auth-email"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                icon={<Mail className="h-4 w-4" />}
+              />
+              <Input
+                id="auth-password"
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                icon={<Lock className="h-4 w-4" />}
               />
 
-              {role === 'buyer' ? (
+              {isSignup && role === 'buyer' && (
                 <>
                   <NigeriaLocationPicker
                     value={area}
                     onChange={setArea}
-                    onUseGps={handleUseGps}
-                    isLocating={isLocating}
                     label="Your State & LGA"
                     compact
                   />
@@ -292,100 +310,87 @@ export function AuthScreen({
                     icon={<MapPin className="h-4 w-4" />}
                   />
                 </>
-              ) : (
-                <div className="space-y-3 rounded-[14px] bg-bg p-3.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-text-primary">
-                      Select or Register Kitchen
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsNewKitchen((prev) => !prev)}
-                      className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-dark hover:underline"
-                    >
-                      {isNewKitchen ? 'Use existing kitchen' : '+ New kitchen'}
-                    </button>
-                  </div>
+              )}
 
-                  {!isNewKitchen ? (
-                    <Select
-                      aria-label="Choose your kitchen"
-                      value={selectedKitchenId}
-                      onChange={(e) => setSelectedKitchenId(e.target.value)}
-                    >
-                      {restaurants.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name} · {r.area}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <div className="space-y-3">
-                      <Input
-                        id="auth-kitchen-name"
-                        label="Kitchen Name"
-                        type="text"
-                        value={newKitchenName}
-                        onChange={(e) => setNewKitchenName(e.target.value)}
-                        placeholder="e.g. Mama Nkechi Buka"
-                      />
-                      <Input
-                        id="auth-kitchen-address"
-                        label="Kitchen Address"
-                        type="text"
-                        value={newKitchenAddress}
-                        onChange={(e) => setNewKitchenAddress(e.target.value)}
-                        placeholder="e.g. 19 Allen Avenue, Ikeja"
-                      />
-                      <NigeriaLocationPicker
-                        value={area}
-                        onChange={setArea}
-                        compact
-                        label="Kitchen State & LGA"
-                      />
-                      <Select
-                        id="auth-kitchen-cat"
-                        label="Specialty"
-                        value={newKitchenCategory}
-                        onChange={(e) =>
-                          setNewKitchenCategory(
-                            e.target.value as Exclude<FoodCategoryKey, 'all'>
-                          )
-                        }
-                      >
-                        {KITCHEN_CATEGORIES.map((c) => (
-                          <option key={c.key} value={c.key}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  )}
+              {isSignup && role === 'seller' && (
+                <div className="space-y-3 rounded-[14px] bg-bg p-3.5">
+                  <span className="text-xs font-semibold text-text-primary">
+                    Your Kitchen
+                  </span>
+                  <Input
+                    id="auth-kitchen-name"
+                    label="Kitchen Name"
+                    type="text"
+                    value={kitchenName}
+                    onChange={(e) => setKitchenName(e.target.value)}
+                    placeholder="e.g. Mama Nkechi Buka"
+                  />
+                  <Input
+                    id="auth-kitchen-address"
+                    label="Kitchen Address"
+                    type="text"
+                    value={kitchenAddress}
+                    onChange={(e) => setKitchenAddress(e.target.value)}
+                    placeholder="e.g. 19 Allen Avenue, Ikeja"
+                  />
+                  <NigeriaLocationPicker
+                    value={area}
+                    onChange={setArea}
+                    compact
+                    label="Kitchen State & LGA"
+                  />
+                  <Select
+                    id="auth-kitchen-cat"
+                    label="Specialty"
+                    value={kitchenCategory}
+                    onChange={(e) =>
+                      setKitchenCategory(e.target.value as CategoryKey)
+                    }
+                  >
+                    {KITCHEN_CATEGORIES.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
               )}
 
+              {info && (
+                <div className="rounded-[12px] bg-success/10 px-3.5 py-2.5 text-xs font-semibold text-success">
+                  {info}
+                </div>
+              )}
               {error && (
                 <div className="rounded-[12px] bg-error/10 px-3.5 py-2.5 text-xs font-semibold text-error">
                   {error}
                 </div>
               )}
 
-              <Button type="submit" size="lg" fullWidth>
-                {role === 'seller'
-                  ? 'Sign In & Start Selling'
-                  : 'Login / Sign Up & Explore'}
+              <Button type="submit" size="lg" fullWidth disabled={loading}>
+                {loading
+                  ? 'Please wait...'
+                  : isSignup
+                    ? role === 'seller'
+                      ? 'Create Account & Kitchen'
+                      : 'Create Account'
+                    : 'Sign In'}
               </Button>
 
-              <div className="flex items-center justify-between pt-1">
+              <p className="pt-1 text-center text-xs text-text-secondary">
+                {isSignup ? 'Already have an account?' : 'New to ChopBellyFull?'}{' '}
                 <button
                   type="button"
-                  onClick={handleFillSample}
-                  className="cursor-pointer text-xs font-semibold text-primary hover:text-primary-dark hover:underline"
+                  onClick={() => {
+                    setMode(isSignup ? 'signin' : 'signup');
+                    setError('');
+                    setInfo('');
+                  }}
+                  className="cursor-pointer font-semibold text-primary hover:text-primary-dark hover:underline"
                 >
-                  Use sample details
+                  {isSignup ? 'Sign in' : 'Create an account'}
                 </button>
-                <Badge variant="peach">Free · No password needed</Badge>
-              </div>
+              </p>
             </form>
           </Card>
         </motion.div>

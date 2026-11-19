@@ -36,126 +36,90 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return json({ error: "Please sign in first" }, 401);
 
+    const body = await req.json();
+    const verifyOnly = body.verify_only === true;
+    const businessName = String(body.business_name ?? "").trim();
+    const bankCode = String(body.bank_code ?? "").trim();
+    const accountNumber = String(body.account_number ?? "").trim();
+
+    if (!verifyOnly && (businessName.length < 2 || businessName.length > 80)) {
+      return json({ error: "Business name must be 2-80 characters" }, 400);
+    }
+    if (!/^\d{3,6}$/.test(bankCode)) return json({ error: "Invalid bank" }, 400);
+    if (!/^\d{10}$/.test(accountNumber)) {
+      return json({ error: "Account number must be 10 digits" }, 400);
+    }
+
+    // 1. Check the bank account really exists and get the account holder's name
+    const resolved = await paystack(
+      `/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
+    );
+    if (!resolved.ok) {
+      return json(
+        { error: resolved.data?.message || "Could not verify that bank account" },
+        400,
+      );
+    }
+    const accountName: string = resolved.data.data.account_name;
+
+    // Step 1 preview only: return the verified account name without saving yet
+    if (verifyOnly) {
+      return json({ ok: true, account_name: accountName });
+    }
+
     const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // ---- validate the request ----
-    const body = await req.json();
-    const items = body.items;
-    const deliveryAddress = String(body.delivery_address ?? "").trim();
+    // 2. Make sure profile + seller rows exist
+    await admin.from("profiles").upsert({ id: user.id }, { onConflict: "id", ignoreDuplicates: true });
+    const { error: sellerErr } = await admin
+      .from("seller_profiles")
+      .upsert({ id: user.id, business_name: businessName });
+    if (sellerErr) return json({ error: "Could not save seller profile" }, 500);
 
-    if (!Array.isArray(items) || items.length < 1 || items.length > 30)
-      return json({ error: "Your cart is empty" }, 400);
-    if (deliveryAddress.length < 5) return json({ error: "Please enter a delivery address" }, 400);
-
-    const qtyById = new Map<string, number>();
-    for (const it of items) {
-      const id = String(it?.food_id ?? "");
-      const qty = Number(it?.quantity);
-      if (!id || !Number.isInteger(qty) || qty < 1 || qty > 50)
-        return json({ error: "Invalid item in cart" }, 400);
-      qtyById.set(id, (qtyById.get(id) ?? 0) + qty);
-    }
-
-    // ---- load real prices from the database ----
-    const { data: foods, error: foodsErr } = await admin
-      .from("foods")
-      .select("id, seller_id, name, price_kobo, is_available")
-      .in("id", [...qtyById.keys()]);
-    if (foodsErr || !foods || foods.length !== qtyById.size)
-      return json({ error: "Some items no longer exist" }, 400);
-    if (foods.some((f) => !f.is_available))
-      return json({ error: "Some items are no longer available" }, 400);
-
-    const sellerIds = new Set(foods.map((f) => f.seller_id));
-    if (sellerIds.size !== 1) return json({ error: "Please order from one seller at a time" }, 400);
-    const sellerId = foods[0].seller_id as string;
-    if (sellerId === user.id) return json({ error: "You can't order your own food" }, 400);
-
-    const { data: payout } = await admin
+    // 3. Create (or update) the Paystack subaccount
+    const { data: existing } = await admin
       .from("seller_payout")
       .select("paystack_subaccount_code")
-      .eq("seller_id", sellerId)
+      .eq("seller_id", user.id)
       .maybeSingle();
-    if (!payout?.paystack_subaccount_code)
-      return json({ error: "This seller can't receive payments yet" }, 400);
 
-    // ---- totals (all in kobo) ----
-    const total = foods.reduce((sum, f) => sum + f.price_kobo * qtyById.get(f.id)!, 0);
-    const commission = Math.round((total * COMMISSION_PERCENT) / 100);
+    let subaccountCode = existing?.paystack_subaccount_code as string | undefined;
 
-    const orderId = crypto.randomUUID();
-    const reference = `cb_${orderId.replaceAll("-", "")}`;
-
-    // ---- create order, items, payment record ----
-    const { error: orderErr } = await admin.from("orders").insert({
-      id: orderId,
-      buyer_id: user.id,
-      seller_id: sellerId,
-      total_kobo: total,
-      commission_kobo: commission,
-      status: "pending_payment",
-      delivery_address: deliveryAddress,
-      payment_reference: reference,
-    });
-    if (orderErr) {
-      console.error(orderErr);
-      return json({ error: "Could not create order" }, 500);
+    if (subaccountCode) {
+      const updated = await paystack(`/subaccount/${subaccountCode}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          business_name: businessName,
+          settlement_bank: bankCode,
+          account_number: accountNumber,
+        }),
+      });
+      if (!updated.ok) return json({ error: updated.data?.message ?? "Paystack update failed" }, 400);
+    } else {
+      const created = await paystack("/subaccount", {
+        method: "POST",
+        body: JSON.stringify({
+          business_name: businessName,
+          settlement_bank: bankCode,
+          account_number: accountNumber,
+          percentage_charge: COMMISSION_PERCENT,
+        }),
+      });
+      if (!created.ok) return json({ error: created.data?.message ?? "Paystack error" }, 400);
+      subaccountCode = created.data.data.subaccount_code;
     }
 
-    const cancelOrder = () =>
-      admin.from("orders").update({ status: "cancelled" }).eq("id", orderId);
-
-    const { error: itemsErr } = await admin.from("order_items").insert(
-      foods.map((f) => ({
-        order_id: orderId,
-        food_id: f.id,
-        name: f.name,
-        unit_price_kobo: f.price_kobo,
-        quantity: qtyById.get(f.id)!,
-      })),
-    );
-    if (itemsErr) {
-      console.error(itemsErr);
-      await cancelOrder();
-      return json({ error: "Could not save order items" }, 500);
-    }
-
-    await admin.from("payments").insert({
-      order_id: orderId,
-      reference,
-      amount_kobo: total,
-      status: "initialized",
+    // 4. Save payout details privately
+    const { error: payoutErr } = await admin.from("seller_payout").upsert({
+      seller_id: user.id,
+      bank_code: bankCode,
+      account_number: accountNumber,
+      account_name: accountName,
+      paystack_subaccount_code: subaccountCode,
     });
+    if (payoutErr) return json({ error: "Could not save payout details" }, 500);
 
-    // ---- ask Paystack for the checkout link ----
-    const siteUrl = Deno.env.get("SITE_URL");
-    const init = await paystack("/transaction/initialize", {
-      method: "POST",
-      body: JSON.stringify({
-        // Paystack needs an email. Phone-only users get a placeholder.
-        email: user.email ?? `${user.id}@users.chopbelly.app`,
-        amount: total,
-        currency: "NGN",
-        reference,
-        subaccount: payout.paystack_subaccount_code,
-        transaction_charge: commission, // Chopbelly's cut, in kobo
-        bearer: "account", // Chopbelly pays Paystack's fee out of the commission
-        metadata: { order_id: orderId },
-        ...(siteUrl ? { callback_url: `${siteUrl}/orders?order=${orderId}` } : {}),
-      }),
-    });
-
-    if (!init.ok) {
-      console.error(init.data);
-      await cancelOrder();
-      return json({ error: "Could not start payment" }, 502);
-    }
-
-    return json({
-      authorization_url: init.data.data.authorization_url,
-      reference,
-      order_id: orderId,
-    });
+    return json({ ok: true, account_name: accountName, business_name: businessName });
   } catch (e) {
     console.error(e);
     return json({ error: "Something went wrong" }, 500);

@@ -36,34 +36,43 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return json({ error: "Please sign in first" }, 401);
 
-    const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
     const body = await req.json();
+    const verifyOnly = body.verify_only === true;
     const businessName = String(body.business_name ?? "").trim();
     const bankCode = String(body.bank_code ?? "").trim();
     const accountNumber = String(body.account_number ?? "").trim();
 
-    if (businessName.length < 2 || businessName.length > 80)
+    if (!verifyOnly && (businessName.length < 2 || businessName.length > 80)) {
       return json({ error: "Business name must be 2-80 characters" }, 400);
+    }
     if (!/^\d{3,6}$/.test(bankCode)) return json({ error: "Invalid bank" }, 400);
-    if (!/^\d{10}$/.test(accountNumber))
+    if (!/^\d{10}$/.test(accountNumber)) {
       return json({ error: "Account number must be 10 digits" }, 400);
+    }
 
-    // 1. Check the bank account really exists and get the account holder's name
     const resolved = await paystack(
       `/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
     );
-    if (!resolved.ok) return json({ error: "Could not verify that bank account" }, 400);
+    if (!resolved.ok) {
+      return json(
+        { error: resolved.data?.message || "Could not verify that bank account" },
+        400,
+      );
+    }
     const accountName: string = resolved.data.data.account_name;
 
-    // 2. Make sure profile + seller rows exist
+    if (verifyOnly) {
+      return json({ ok: true, account_name: accountName });
+    }
+
+    const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
     await admin.from("profiles").upsert({ id: user.id }, { onConflict: "id", ignoreDuplicates: true });
     const { error: sellerErr } = await admin
       .from("seller_profiles")
       .upsert({ id: user.id, business_name: businessName });
     if (sellerErr) return json({ error: "Could not save seller profile" }, 500);
 
-    // 3. Create (or update) the Paystack subaccount
     const { data: existing } = await admin
       .from("seller_payout")
       .select("paystack_subaccount_code")
@@ -96,7 +105,6 @@ Deno.serve(async (req) => {
       subaccountCode = created.data.data.subaccount_code;
     }
 
-    // 4. Save payout details privately
     const { error: payoutErr } = await admin.from("seller_payout").upsert({
       seller_id: user.id,
       bank_code: bankCode,

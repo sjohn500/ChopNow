@@ -11,6 +11,16 @@ export type ScreenId = 'home' | 'menu' | 'post' | 'orders' | 'profile';
 
 export type TrackingStage = 'pending' | 'accepted' | 'delivered';
 
+export type DbOrderStatus =
+  | 'pending_payment'
+  | 'paid'
+  | 'accepted'
+  | 'preparing'
+  | 'delivered'
+  | 'completed'
+  | 'cancelled'
+  | 'refunded';
+
 export type UserRole = 'buyer' | 'seller';
 
 export interface AuthUser {
@@ -61,6 +71,13 @@ export interface CartEntry {
 }
 
 export interface ActiveOrder {
+  id?: string;
+  buyerId?: string;
+  sellerId?: string;
+  dbStatus?: DbOrderStatus;
+  buyerName?: string;
+  buyerPhone?: string;
+  paymentReference?: string;
   code: string;
   restaurantId: string;
   restaurantName: string;

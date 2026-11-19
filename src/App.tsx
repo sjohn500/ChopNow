@@ -11,65 +11,41 @@ import { PostFoodScreen } from './components/PostFoodScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { RestaurantMenuScreen } from './components/RestaurantMenuScreen';
 import { SwipeableScreenDeck } from './components/SwipeableScreenDeck';
+import { EmptyState } from './components/ui';
+import { INITIAL_USER, RESTAURANTS } from './data/deliveryData';
+import { signOut } from './lib/auth';
+import { fetchRestaurants, loadSessionUser } from './lib/marketplace';
 import {
-  getDistanceToRestaurant,
-  INITIAL_ACTIVE_ORDER,
-  INITIAL_CART,
-  INITIAL_USER,
-  RESTAURANTS,
-} from './data/deliveryData';
-import { getNigeriaLocationCoords } from './data/nigeriaLocations';
+  fetchMyOrders,
+  isUuid,
+  subscribeToOrderChanges,
+  updateOrderStatusInDb,
+} from './lib/orders';
+import { startCheckout } from './lib/payments';
+import {
+  deleteDishFromDb,
+  publishDishToDb,
+  toggleDishAvailabilityInDb,
+  updateKitchenDeliveryFeeInDb,
+  updateMyKitchenInDb,
+  updateMyProfileInDb,
+} from './lib/seller';
 import {
   ActiveOrder,
   AuthUser,
   CartEntry,
+  DbOrderStatus,
   FoodCategoryKey,
   MenuItem,
   Restaurant,
   ScreenId,
-  TrackingStage,
   UserRole,
 } from './types/delivery';
 
-const KEYS = {
-  restaurants: 'chopbelly_restaurants_v8',
-  user: 'chopbelly_user_v8',
-  orders: 'chopbelly_orders_v8',
-  auth: 'chopbelly_auth_v8',
-} as const;
-
-const SYNC_CHANNEL = 'chopbelly_marketplace_sync_v8';
-
-function readStored<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStored<T>(key: string, value: T): void {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore storage quota issues cleanly
-  }
-}
-
-function normalizeStage(stage: string): TrackingStage {
-  if (stage === 'pending' || stage === 'accepted' || stage === 'delivered') {
-    return stage;
-  }
-  if (stage === 'confirmed') return 'pending';
-  return 'accepted';
-}
-
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() =>
-    readStored(KEYS.auth, false)
-  );
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showLanding, setShowLanding] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialRole, setAuthInitialRole] = useState<UserRole>('buyer');
@@ -86,69 +62,127 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<FoodCategoryKey>('all');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(() =>
-    readStored(KEYS.restaurants, RESTAURANTS)
-  );
-  const [user, setUser] = useState<AuthUser>(() =>
-    readStored(KEYS.user, INITIAL_USER)
-  );
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [user, setUser] = useState<AuthUser>(INITIAL_USER);
   const [location, setLocation] = useState<string>(
-    () => readStored(KEYS.user, INITIAL_USER).buyerArea || 'Eti-Osa, Lagos'
+    INITIAL_USER.buyerArea || 'Eti-Osa, Lagos'
   );
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>(
-    () => RESTAURANTS[0].id
-  );
-  const [cart, setCart] = useState<CartEntry[]>(INITIAL_CART);
-  const [orders, setOrders] = useState<ActiveOrder[]>(() => {
-    const stored = readStored<ActiveOrder[]>(KEYS.orders, [
-      INITIAL_ACTIVE_ORDER,
-    ]);
-    return stored.map((o) => ({ ...o, stage: normalizeStage(o.stage) }));
-  });
-  const [activeOrderCode, setActiveOrderCode] = useState<string>(
-    () => orders[0]?.code ?? INITIAL_ACTIVE_ORDER.code
-  );
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>('');
+  const [cart, setCart] = useState<CartEntry[]>([]);
+  const [orders, setOrders] = useState<ActiveOrder[]>([]);
+  const [activeOrderId, setActiveOrderId] = useState<string>('');
   const [toast, setToast] = useState<string | null>(null);
 
-  const broadcastUpdate = useCallback(() => {
+  const refreshOrders = useCallback(
+    async (kitchenList: Restaurant[], buyerArea: string) => {
+      try {
+        const { orders: dbOrders, userId } = await fetchMyOrders(
+          kitchenList,
+          buyerArea
+        );
+        setCurrentUserId(userId);
+        setOrders(dbOrders);
+        setActiveOrderId((prev) =>
+          prev && dbOrders.some((o) => o.id === prev)
+            ? prev
+            : (dbOrders[0]?.id ?? '')
+        );
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+      }
+    },
+    []
+  );
+
+  const refreshRestaurants = useCallback(async () => {
     try {
-      const ch = new BroadcastChannel(SYNC_CHANNEL);
-      ch.postMessage({ at: Date.now() });
-      ch.close();
-    } catch {
-      // Ignore if unsupported
+      const realKitchens = await fetchRestaurants();
+      setRestaurants(realKitchens);
+      setSelectedRestaurantId((prev) =>
+        realKitchens.some((r) => r.id === prev)
+          ? prev
+          : (realKitchens[0]?.id ?? '')
+      );
+      return realKitchens;
+    } catch (err) {
+      console.error('Failed to load kitchens:', err);
+      setToast(
+        err instanceof Error ? err.message : 'Could not load kitchens.'
+      );
+      return [] as Restaurant[];
     }
   }, []);
 
   useEffect(() => {
-    const reload = () => {
-      setRestaurants(readStored(KEYS.restaurants, RESTAURANTS));
-      const storedOrders = readStored<ActiveOrder[]>(KEYS.orders, [
-        INITIAL_ACTIVE_ORDER,
-      ]);
-      setOrders(
-        storedOrders.map((o) => ({ ...o, stage: normalizeStage(o.stage) }))
-      );
-    };
+    let active = true;
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === KEYS.restaurants || e.key === KEYS.orders) reload();
-    };
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const returnedOrderId = params.get('order');
+      if (returnedOrderId) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
 
-    window.addEventListener('storage', onStorage);
-    let ch: BroadcastChannel | null = null;
-    try {
-      ch = new BroadcastChannel(SYNC_CHANNEL);
-      ch.onmessage = reload;
-    } catch {
-      ch = null;
+      try {
+        const [sessionUser, realKitchens] = await Promise.all([
+          loadSessionUser(INITIAL_USER),
+          fetchRestaurants().catch((err) => {
+            console.error('Failed to load kitchens:', err);
+            return [] as Restaurant[];
+          }),
+        ]);
+
+        if (!active) return;
+
+        setRestaurants(realKitchens);
+
+        if (sessionUser) {
+          const area = sessionUser.buyerArea || INITIAL_USER.buyerArea;
+          setUser(sessionUser);
+          setIsAuthenticated(true);
+          setShowLanding(false);
+          setShowAuth(false);
+          setLocation(area);
+
+          await refreshOrders(realKitchens, area);
+
+          if (returnedOrderId) {
+            setCart([]);
+            setActiveOrderId(returnedOrderId);
+            setActiveScreen('orders');
+            setToast('Payment submitted! Watching your order status live.');
+          } else if (
+            sessionUser.role === 'seller' &&
+            sessionUser.sellerRestaurantId
+          ) {
+            setSelectedRestaurantId(sessionUser.sellerRestaurantId);
+            setActiveScreen('post');
+          } else if (realKitchens[0]) {
+            setSelectedRestaurantId(realKitchens[0].id);
+          }
+        } else if (realKitchens[0]) {
+          setSelectedRestaurantId(realKitchens[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to restore session:', err);
+      } finally {
+        if (active) setIsRestoringSession(false);
+      }
     }
 
+    init();
+
     return () => {
-      window.removeEventListener('storage', onStorage);
-      ch?.close();
+      active = false;
     };
-  }, []);
+  }, [refreshOrders]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUserId) return;
+    return subscribeToOrderChanges(currentUserId, () => {
+      refreshOrders(restaurants, location);
+    });
+  }, [isAuthenticated, currentUserId, restaurants, location, refreshOrders]);
 
   useEffect(() => {
     if (!toast) return;
@@ -160,18 +194,14 @@ export default function App() {
     restaurants.find((r) => r.id === selectedRestaurantId) ?? restaurants[0];
 
   const activeOrder =
-    orders.find((o) => o.code === activeOrderCode) ??
-    orders[0] ??
-    INITIAL_ACTIVE_ORDER;
+    orders.find((o) => o.id === activeOrderId) ?? orders[0];
 
   const activeOrderCount = orders.filter(
-    (o) => o.stage !== 'delivered'
+    (o) =>
+      o.dbStatus !== 'completed' &&
+      o.dbStatus !== 'cancelled' &&
+      o.dbStatus !== 'refunded'
   ).length;
-
-  const cartSubtotal = cart.reduce(
-    (sum, entry) => sum + entry.item.price * entry.quantity,
-    0
-  );
 
   function openAuthScreen(role: UserRole = 'buyer', message?: string) {
     setAuthInitialRole(role);
@@ -183,11 +213,7 @@ export default function App() {
 
   function handleChangeLocation(nextLocation: string) {
     setLocation(nextLocation);
-    setUser((prev) => {
-      const next = { ...prev, buyerArea: nextLocation };
-      writeStored(KEYS.user, next);
-      return next;
-    });
+    setUser((prev) => ({ ...prev, buyerArea: nextLocation }));
   }
 
   function handleEnterApp(screen: ScreenId = 'home') {
@@ -226,6 +252,10 @@ export default function App() {
   }
 
   function handleOrderPlate(restaurant: Restaurant, item: MenuItem) {
+    if (!isUuid(item.id) || !isUuid(restaurant.id)) {
+      setToast('Sample kitchens cannot be ordered. Choose a real kitchen.');
+      return;
+    }
     if (item.isAvailable === false) {
       setToast(`${item.name} is currently out of stock.`);
       return;
@@ -249,31 +279,17 @@ export default function App() {
     setToast(`Added ${item.name} from ${restaurant.name} to your tray.`);
   }
 
-  function handleTrackKitchenLocation(restaurant: Restaurant) {
-    const dist = getDistanceToRestaurant(location, restaurant);
-    const updatedOrder: ActiveOrder = {
-      ...activeOrder,
-      restaurantId: restaurant.id,
-      restaurantName: restaurant.name,
-      restaurantArea: restaurant.area,
-      restaurantAddress: restaurant.address,
-      destination: `${user.buyerLandmark} · ${location}`,
-      distanceKm: dist,
-    };
-    setOrders((prev) => {
-      const next = prev.map((o) =>
-        o.code === activeOrder.code ? updatedOrder : o
-      );
-      writeStored(KEYS.orders, next);
-      return next;
-    });
+  function handleTrackKitchenLocation(_restaurant: Restaurant) {
     if (viewMode !== 'grid') {
       setActiveScreen('orders');
     }
-    setToast(`Showing ${restaurant.name} (${dist} km from ${location}) on map.`);
   }
 
   function handleAddItem(item: MenuItem) {
+    if (!isUuid(item.id)) {
+      setToast('Sample dishes cannot be added to cart.');
+      return;
+    }
     if (item.isAvailable === false) {
       setToast(`${item.name} is currently out of stock.`);
       return;
@@ -302,89 +318,48 @@ export default function App() {
     );
   }
 
-  function handleCheckoutConfirm() {
+  async function handleStartPaystackCheckout(buyer: {
+    name: string;
+    phone: string;
+    deliveryAddress: string;
+  }) {
     if (cart.length === 0) return;
-    const total = cartSubtotal + selectedRestaurant.deliveryFee;
-    const summary = cart
-      .map((c) => `${c.quantity}x ${c.item.name}`)
-      .join(', ');
-    const code = `CB-${Math.floor(1000 + Math.random() * 9000)}`;
-    const dist = getDistanceToRestaurant(location, selectedRestaurant);
 
-    const nextOrder: ActiveOrder = {
-      ...INITIAL_ACTIVE_ORDER,
-      code,
-      restaurantId: selectedRestaurant.id,
-      restaurantName: selectedRestaurant.name,
-      restaurantArea: selectedRestaurant.area,
-      restaurantAddress: selectedRestaurant.address,
-      destination: `${user.buyerLandmark}, ${location}`,
-      distanceKm: dist,
-      itemsSummary: summary,
-      plateImageUrl:
-        cart[0]?.item.imageUrl ?? selectedRestaurant.heroImageUrl,
-      totalAmount: total,
-      stage: 'pending',
-      etaMinutes: selectedRestaurant.deliveryMinutes.replace('min', 'mins'),
-      arrivalTime: '22–28 mins',
-      createdAt: 'Just now',
-    };
+    const result = await startCheckout(
+      cart.map((c) => ({ food_id: c.item.id, quantity: c.quantity })),
+      buyer
+    );
 
-    setOrders((prev) => {
-      const next = [nextOrder, ...prev];
-      writeStored(KEYS.orders, next);
-      return next;
-    });
-    setActiveOrderCode(code);
-    broadcastUpdate();
-    setCart([]);
-    setToast(`Order #${code} placed with ${selectedRestaurant.name}!`);
-    if (viewMode !== 'grid') {
-      setActiveScreen('orders');
-    }
+    window.location.href = result.authorization_url;
   }
 
-  function handleStageChange(stage: TrackingStage) {
-    const nextEta =
-      stage === 'pending'
-        ? '25–30 mins'
-        : stage === 'accepted'
-          ? '14–20 mins'
-          : 'Arrived';
-    setOrders((prev) => {
-      const next = prev.map((o) =>
-        o.code === activeOrder.code
-          ? { ...o, stage, etaMinutes: nextEta }
-          : o
-      );
-      writeStored(KEYS.orders, next);
-      return next;
-    });
-    broadcastUpdate();
-    const label =
-      stage === 'pending'
-        ? 'Pending'
-        : stage === 'accepted'
-          ? 'Accepted'
-          : 'Delivered';
-    setToast(`Order #${activeOrder.code} marked as ${label}.`);
+  async function handleAdvanceOrderStatus(
+    orderId: string,
+    nextStatus: DbOrderStatus
+  ) {
+    await updateOrderStatusInDb(orderId, nextStatus);
+    await refreshOrders(restaurants, location);
+    setToast(`Order updated to ${nextStatus}.`);
   }
 
   function handleSelectOrder(order: ActiveOrder) {
-    setActiveOrderCode(order.code);
+    if (order.id) setActiveOrderId(order.id);
     if (viewMode !== 'grid') {
       setActiveScreen('orders');
     }
   }
 
-  function handleLogin(nextUser: AuthUser) {
+  async function handleLogin(nextUser: AuthUser) {
     setIsAuthenticated(true);
-    writeStored(KEYS.auth, true);
     setUser(nextUser);
-    writeStored(KEYS.user, nextUser);
+    const area = nextUser.buyerArea || location;
     if (nextUser.buyerArea) {
       setLocation(nextUser.buyerArea);
     }
+
+    const realKitchens = await refreshRestaurants();
+    await refreshOrders(realKitchens, area);
+
     if (nextUser.role === 'seller' && nextUser.sellerRestaurantId) {
       setSelectedRestaurantId(nextUser.sellerRestaurantId);
     }
@@ -401,13 +376,25 @@ export default function App() {
     setShowLanding(false);
     setActiveScreen(targetScreen);
     setToast(
-      `Welcome, ${nextUser.name}! Showing warm plates near ${nextUser.buyerArea}.`
+      `Welcome, ${nextUser.name}! Showing warm plates near ${area}.`
     );
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await signOut();
+    } catch (err) {
+      setToast(
+        err instanceof Error ? err.message : 'Could not sign out cleanly.'
+      );
+      return;
+    }
     setIsAuthenticated(false);
-    writeStored(KEYS.auth, false);
+    setCurrentUserId(null);
+    setUser(INITIAL_USER);
+    setCart([]);
+    setOrders([]);
+    setActiveOrderId('');
     setPendingTarget(null);
     setShowAuth(false);
     setShowLanding(true);
@@ -415,7 +402,19 @@ export default function App() {
     setToast('Signed out. Sign in anytime to order or post food.');
   }
 
-  function handleUpdateProfile(
+  async function handleKitchenReady() {
+    const refreshedUser = await loadSessionUser(user);
+    if (refreshedUser) {
+      setUser(refreshedUser);
+      if (refreshedUser.sellerRestaurantId) {
+        setSelectedRestaurantId(refreshedUser.sellerRestaurantId);
+      }
+    }
+    await refreshRestaurants();
+    setToast('Kitchen opened! Add your bank details next.');
+  }
+
+  async function handleUpdateProfile(
     nextUser: AuthUser,
     kitchenPatch?: {
       id: string;
@@ -423,115 +422,41 @@ export default function App() {
       address: string;
       area: string;
       categoryKey: Exclude<FoodCategoryKey, 'all'>;
+      deliveryFee: number;
     }
   ) {
-    setUser(nextUser);
-    writeStored(KEYS.user, nextUser);
-    setLocation(nextUser.buyerArea);
+    await updateMyProfileInDb({
+      full_name: nextUser.name,
+      phone: nextUser.phone,
+    });
 
     if (kitchenPatch) {
-      const tagMap: Record<Exclude<FoodCategoryKey, 'all'>, string[]> = {
-        jollof: ['Jollof & Rice', 'Authentic Local'],
-        swallows: ['Swallows & Soup', 'Local Buka'],
-        suya: ['Suya & Grills', 'Charcoal'],
-        small_chops: ['Small Chops', 'Party Bites'],
-        pepper_soup: ['Pepper Soup', 'Hot Pot'],
-        drinks: ['Palm Wine/Drinks', 'Chilled'],
-      };
-      const coords = getNigeriaLocationCoords(kitchenPatch.area);
-
-      setRestaurants((prev) => {
-        const next = prev.map((r) =>
-          r.id === kitchenPatch.id
-            ? {
-                ...r,
-                name: kitchenPatch.name,
-                address: kitchenPatch.address,
-                area: kitchenPatch.area,
-                categoryKey: kitchenPatch.categoryKey,
-                cuisineTags: tagMap[kitchenPatch.categoryKey],
-                lat: coords.lat + 0.002,
-                lng: coords.lng + 0.002,
-              }
-            : r
-        );
-        writeStored(KEYS.restaurants, next);
-        return next;
-      });
-
-      setOrders((prev) => {
-        const next = prev.map((o) =>
-          o.restaurantId === kitchenPatch.id
-            ? {
-                ...o,
-                restaurantName: kitchenPatch.name,
-                restaurantAddress: kitchenPatch.address,
-                restaurantArea: kitchenPatch.area,
-              }
-            : o
-        );
-        writeStored(KEYS.orders, next);
-        return next;
+      await updateMyKitchenInDb({
+        business_name: kitchenPatch.name,
+        address: kitchenPatch.address,
+        area: kitchenPatch.area,
+        category: kitchenPatch.categoryKey,
+        delivery_fee_kobo: Math.round(kitchenPatch.deliveryFee * 100),
       });
     }
 
-    broadcastUpdate();
-    setToast('Profile updated and saved.');
+    setUser(nextUser);
+    setLocation(nextUser.buyerArea);
+    await refreshRestaurants();
+    setToast('Profile and kitchen updated in database.');
   }
 
-  function handleCreateRestaurant(input: {
-    kitchenName: string;
-    area: string;
-    address: string;
-    categoryKey: Exclude<FoodCategoryKey, 'all'>;
-    coverImageUrl: string;
-  }): Restaurant {
-    const tagMap: Record<Exclude<FoodCategoryKey, 'all'>, string[]> = {
-      jollof: ['Jollof & Rice', 'Authentic Local'],
-      swallows: ['Swallows & Soup', 'Local Buka'],
-      suya: ['Suya & Grills', 'Charcoal'],
-      small_chops: ['Small Chops', 'Party Bites'],
-      pepper_soup: ['Pepper Soup', 'Hot Pot'],
-      drinks: ['Palm Wine/Drinks', 'Chilled'],
-    };
-
-    const coords = getNigeriaLocationCoords(input.area);
-
-    const newRestaurant: Restaurant = {
-      id: `kitchen-${Date.now()}`,
-      name: input.kitchenName,
-      cuisineTags: tagMap[input.categoryKey],
-      categoryKey: input.categoryKey,
-      rating: 5.0,
-      reviewCount: 1,
-      deliveryMinutes: '15–25 min',
-      deliveryFee: 0,
-      area: input.area,
-      address: input.address,
-      lat: coords.lat + 0.002,
-      lng: coords.lng + 0.002,
-      promoLabel: 'New',
-      heroImageUrl: input.coverImageUrl,
-      menu: [],
-    };
-
-    setRestaurants((prev) => {
-      const next = [newRestaurant, ...prev];
-      writeStored(KEYS.restaurants, next);
-      return next;
-    });
-    setUser((prev) => {
-      const next = { ...prev, sellerRestaurantId: newRestaurant.id };
-      writeStored(KEYS.user, next);
-      return next;
-    });
-    setSelectedRestaurantId(newRestaurant.id);
-    broadcastUpdate();
-    return newRestaurant;
+  async function handleUpdateDeliveryFee(feeNaira: number) {
+    await updateKitchenDeliveryFeeInDb(feeNaira);
+    await refreshRestaurants();
+    setToast(
+      feeNaira === 0
+        ? 'Delivery fee set to Free.'
+        : `Delivery fee updated to ₦${feeNaira.toLocaleString()}.`
+    );
   }
 
-  function handlePublishDish(input: {
-    restaurantId: string;
+  async function handlePublishDish(input: {
     name: string;
     description: string;
     price: number;
@@ -539,96 +464,58 @@ export default function App() {
     imageUrl: string;
     setAsCover: boolean;
   }) {
-    const newItem: MenuItem = {
-      id: `dish-${Date.now()}`,
-      restaurantId: input.restaurantId,
+    const myKitchen = restaurants.find((r) => r.id === user.sellerRestaurantId);
+    await publishDishToDb({
       name: input.name,
       description: input.description,
-      price: input.price,
+      priceNaira: input.price,
       category: input.category,
-      imageUrl: input.imageUrl,
-      isAvailable: true,
-      isNew: true,
-      rating: 5.0,
-    };
-
-    setRestaurants((prev) => {
-      const next = prev.map((r) => {
-        if (r.id !== input.restaurantId) return r;
-        const shouldReplaceCover = input.setAsCover || r.menu.length === 0;
-        return {
-          ...r,
-          heroImageUrl: shouldReplaceCover ? input.imageUrl : r.heroImageUrl,
-          menu: [newItem, ...r.menu],
-        };
-      });
-      writeStored(KEYS.restaurants, next);
-      return next;
+      photo: input.imageUrl,
+      setAsCover: input.setAsCover,
+      isFirstDish: (myKitchen?.menu.length ?? 0) === 0,
     });
 
-    setUser((prev) => {
-      const next = { ...prev, sellerRestaurantId: input.restaurantId };
-      writeStored(KEYS.user, next);
-      return next;
-    });
-
-    setSelectedRestaurantId(input.restaurantId);
-    setShowLanding(false);
-    setActiveScreen('home');
-    broadcastUpdate();
+    await refreshRestaurants();
+    if (user.sellerRestaurantId) {
+      setSelectedRestaurantId(user.sellerRestaurantId);
+    }
     setToast(`${input.name} is now live on ChopBellyFull!`);
   }
 
-  function handleToggleDishAvailability(restaurantId: string, itemId: string) {
-    let nextLabel = 'Available';
-    setRestaurants((prev) => {
-      const next = prev.map((r) => {
-        if (r.id !== restaurantId) return r;
-        return {
-          ...r,
-          menu: r.menu.map((item) => {
-            if (item.id !== itemId) return item;
-            const nextAvailable = item.isAvailable === false;
-            nextLabel = nextAvailable ? 'Available' : 'Out of stock';
-            return { ...item, isAvailable: nextAvailable };
-          }),
-        };
-      });
-      writeStored(KEYS.restaurants, next);
-      return next;
-    });
-    broadcastUpdate();
-    setToast(`Dish marked as ${nextLabel}.`);
-  }
-
-  function handleDeleteDish(restaurantId: string, itemId: string) {
-    setRestaurants((prev) => {
-      const next = prev.map((r) =>
-        r.id === restaurantId
-          ? { ...r, menu: r.menu.filter((item) => item.id !== itemId) }
-          : r
+  async function handleToggleDishAvailability(
+    restaurantId: string,
+    itemId: string
+  ) {
+    const restaurant = restaurants.find((r) => r.id === restaurantId);
+    const dish = restaurant?.menu.find((m) => m.id === itemId);
+    const nextAvailable = dish ? dish.isAvailable === false : false;
+    try {
+      await toggleDishAvailabilityInDb(itemId, nextAvailable);
+      await refreshRestaurants();
+      setToast(
+        `Dish marked as ${nextAvailable ? 'Available' : 'Out of stock'}.`
       );
-      writeStored(KEYS.restaurants, next);
-      return next;
-    });
-    broadcastUpdate();
-    setToast('Dish removed from your posts.');
+    } catch (err) {
+      setToast(
+        err instanceof Error ? err.message : 'Could not update dish status.'
+      );
+    }
   }
 
-  function handleResetDemo() {
-    setRestaurants(RESTAURANTS);
-    setUser(INITIAL_USER);
-    setSelectedRestaurantId(RESTAURANTS[0].id);
-    setCart(INITIAL_CART);
-    setOrders([INITIAL_ACTIVE_ORDER]);
-    setActiveOrderCode(INITIAL_ACTIVE_ORDER.code);
-    setLocation('Eti-Osa, Lagos');
-    setActiveCategory('all');
-    writeStored(KEYS.restaurants, RESTAURANTS);
-    writeStored(KEYS.user, INITIAL_USER);
-    writeStored(KEYS.orders, [INITIAL_ACTIVE_ORDER]);
-    broadcastUpdate();
-    setToast('ChopBellyFull kitchens and sample plates restored.');
+  async function handleDeleteDish(_restaurantId: string, itemId: string) {
+    try {
+      await deleteDishFromDb(itemId);
+      await refreshRestaurants();
+      setToast('Dish removed from your kitchen.');
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Could not delete dish.');
+    }
+  }
+
+  async function handleRefreshAll() {
+    const latest = await refreshRestaurants();
+    await refreshOrders(latest, location);
+    setToast('Kitchens and orders refreshed.');
   }
 
   const screenLayoutMode = viewMode === 'responsive' ? 'responsive' : 'frame';
@@ -643,6 +530,7 @@ export default function App() {
       onChangeLocation={handleChangeLocation}
       onSelectRestaurant={handleSelectRestaurant}
       onOrderPlate={handleOrderPlate}
+      onRefresh={handleRefreshAll}
       onNavigateScreen={setActiveScreen}
       activeOrderCount={activeOrderCount}
       overlayInset={viewMode === 'phone'}
@@ -650,7 +538,7 @@ export default function App() {
     />
   );
 
-  const menuScreenNode = (
+  const menuScreenNode = selectedRestaurant ? (
     <RestaurantMenuScreen
       restaurant={selectedRestaurant}
       buyerLocation={location}
@@ -661,17 +549,29 @@ export default function App() {
       onDecrementItem={handleDecrementItem}
       onTrackKitchenLocation={handleTrackKitchenLocation}
       onEditProfile={() => setActiveScreen('profile')}
-      onCheckoutConfirm={handleCheckoutConfirm}
+      onStartPaystackCheckout={handleStartPaystackCheckout}
       layoutMode={screenLayoutMode}
     />
+  ) : (
+    <div className="mx-auto max-w-xl px-4 py-12">
+      <EmptyState
+        emoji="🍲"
+        title="No kitchen selected yet"
+        description="Explore kitchens on the Home feed or post a dish from your kitchen."
+        actionLabel="Browse Food"
+        onAction={() => setActiveScreen('home')}
+      />
+    </div>
   );
 
   const postScreenNode = (
     <PostFoodScreen
       user={user}
-      restaurants={restaurants}
-      onCreateRestaurant={handleCreateRestaurant}
+      onKitchenReady={handleKitchenReady}
       onPublishDish={handlePublishDish}
+      onUpdateDeliveryFee={handleUpdateDeliveryFee}
+      onToggleDishAvailability={handleToggleDishAvailability}
+      onDeleteDish={handleDeleteDish}
       onNavigateScreen={setActiveScreen}
       activeOrderCount={activeOrderCount}
       overlayInset={viewMode === 'phone'}
@@ -683,7 +583,9 @@ export default function App() {
     <OrderTrackingScreen
       order={activeOrder}
       orders={orders}
-      onChangeStage={handleStageChange}
+      currentUserId={currentUserId}
+      onAdvanceStatus={handleAdvanceOrderStatus}
+      onRefreshOrders={() => refreshOrders(restaurants, location)}
       onSelectOrder={handleSelectOrder}
       onNavigateScreen={setActiveScreen}
       onBackHome={() => setActiveScreen('home')}
@@ -702,7 +604,7 @@ export default function App() {
       onSelectOrder={handleSelectOrder}
       onNavigateScreen={setActiveScreen}
       onLogout={handleLogout}
-      onResetDemo={handleResetDemo}
+      onResetDemo={handleRefreshAll}
       overlayInset={viewMode === 'phone'}
       layoutMode={screenLayoutMode}
     />
@@ -724,6 +626,14 @@ export default function App() {
     }
   }
 
+  if (isRestoringSession) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-bg text-sm font-medium text-text-secondary">
+        Loading ChopBellyFull...
+      </div>
+    );
+  }
+
   return (
     <MotionConfig reducedMotion="user">
       <AnimatePresence mode="wait">
@@ -736,11 +646,17 @@ export default function App() {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
             <LandingPage
-              restaurants={restaurants}
+              restaurants={restaurants.length > 0 ? restaurants : RESTAURANTS}
               location={location}
               isAuthenticated={isAuthenticated}
               onEnterApp={handleEnterApp}
-              onSelectRestaurant={handleSelectRestaurant}
+              onSelectRestaurant={(r) => {
+                if (!isUuid(r.id)) {
+                  handleEnterApp('home');
+                } else {
+                  handleSelectRestaurant(r);
+                }
+              }}
               onOpenAuth={(role) => openAuthScreen(role ?? 'buyer')}
             />
           </motion.div>
@@ -755,10 +671,8 @@ export default function App() {
             <AuthScreen
               initialRole={authInitialRole}
               user={user}
-              restaurants={restaurants}
               promptMessage={authPromptMessage}
               onLogin={handleLogin}
-              onCreateRestaurant={handleCreateRestaurant}
               onBackToLanding={() => {
                 setShowAuth(false);
                 setShowLanding(true);
@@ -793,7 +707,7 @@ export default function App() {
                 }}
                 onOpenLanding={() => setShowLanding(true)}
                 onLogout={handleLogout}
-                onResetDemo={handleResetDemo}
+                onResetDemo={handleRefreshAll}
               />
             </aside>
 
@@ -953,7 +867,7 @@ export default function App() {
 
                         <IPhoneFrame
                           title="03. Orders & Map"
-                          subtitle="Pending, Accepted & Delivered"
+                          subtitle="Live Paystack & kitchen status"
                           overlayStatusBar
                           statusBarTone="dark"
                         >
@@ -992,7 +906,7 @@ export default function App() {
                     }}
                     onOpenLanding={() => setShowLanding(true)}
                     onLogout={handleLogout}
-                    onResetDemo={handleResetDemo}
+                    onResetDemo={handleRefreshAll}
                     onClose={() => setIsDrawerOpen(false)}
                     isMobileDrawer
                   />

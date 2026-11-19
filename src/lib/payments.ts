@@ -1,45 +1,154 @@
 import { supabase } from './supabase';
 
-async function invoke<T>(name: string, body: unknown): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+export type VerifySellerBankInput = {
+  bank_code: string;
+  account_number: string;
+};
 
-  if (error) {
-    let message = 'Something went wrong. Please try again.';
-    try {
-      // The Edge Function sends { error: "..." }; read it from the response.
-      const response = (error as { context?: Response }).context;
-      if (response && typeof response.json === 'function') {
-        const payload = await response.json();
-        if (payload?.error) message = payload.error;
-      }
-    } catch {
-      // keep the default message
-    }
-    throw new Error(message);
-  }
-
-  return data as T;
-}
-
-export type CartLine = { food_id: string; quantity: number };
-
-/** Seller saves bank details. Creates their Paystack subaccount. */
-export function saveSellerBank(input: {
+export type SaveSellerBankInput = {
   business_name: string;
   bank_code: string;
   account_number: string;
-}) {
-  return invoke<{ ok: true; account_name: string; business_name: string }>(
-    'create-subaccount',
-    input,
-  );
+};
+
+export type SaveSellerBankResult = {
+  account_name: string;
+  subaccount_code?: string;
+};
+
+export type PayoutAccountSummary = {
+  account_name: string;
+  bank_code: string;
+  account_number: string;
+};
+
+export type CheckoutItemInput = {
+  food_id: string;
+  quantity: number;
+};
+
+export type CheckoutBuyerInput = {
+  name: string;
+  phone: string;
+  deliveryAddress: string;
+};
+
+export type StartCheckoutResult = {
+  authorization_url: string;
+  reference: string;
+  order_id: string;
+  total_kobo: number;
+};
+
+async function extractFunctionError(error: unknown, fallback: string): Promise<string> {
+  if (error && typeof error === 'object' && 'context' in error) {
+    const res = (error as { context?: Response }).context;
+    if (res && typeof res.json === 'function') {
+      try {
+        const body = (await res.json()) as { error?: string };
+        if (body?.error) return body.error;
+      } catch {
+        // Ignore JSON parse errors and fall back
+      }
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
 }
 
-/** Buyer pays. Creates the order, then opens the Paystack checkout page. */
-export async function startCheckout(items: CartLine[], deliveryAddress: string) {
-  const data = await invoke<{ authorization_url: string; order_id: string }>(
-    'initialize-payment',
-    { items, delivery_address: deliveryAddress },
-  );
-  window.location.href = data.authorization_url;
+export async function getMyPayoutAccount(): Promise<PayoutAccountSummary | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('seller_payout')
+    .select('account_name, bank_code, account_number')
+    .eq('seller_id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+export async function verifySellerBank(
+  input: VerifySellerBankInput
+): Promise<{ account_name: string }> {
+  const { data, error } = await supabase.functions.invoke('create-subaccount', {
+    body: {
+      verify_only: true,
+      bank_code: input.bank_code,
+      account_number: input.account_number,
+    },
+  });
+
+  if (error) {
+    throw new Error(
+      await extractFunctionError(error, 'Could not verify that bank account.')
+    );
+  }
+
+  if (!data?.account_name) {
+    throw new Error(
+      (data as { error?: string } | null)?.error ??
+        'Could not verify that bank account.'
+    );
+  }
+
+  return { account_name: data.account_name as string };
+}
+
+export async function saveSellerBank(
+  input: SaveSellerBankInput
+): Promise<SaveSellerBankResult> {
+  const { data, error } = await supabase.functions.invoke('create-subaccount', {
+    body: input,
+  });
+
+  if (error) {
+    throw new Error(
+      await extractFunctionError(error, 'Could not save your bank details.')
+    );
+  }
+
+  if (!data?.account_name) {
+    throw new Error(
+      (data as { error?: string } | null)?.error ??
+        'Could not verify your bank account.'
+    );
+  }
+
+  return data as SaveSellerBankResult;
+}
+
+export async function startCheckout(
+  items: CheckoutItemInput[],
+  buyer: CheckoutBuyerInput
+): Promise<StartCheckoutResult> {
+  const { data, error } = await supabase.functions.invoke('initialize-payment', {
+    body: {
+      items,
+      buyer_name: buyer.name,
+      buyer_phone: buyer.phone,
+      delivery_address: buyer.deliveryAddress,
+    },
+  });
+
+  if (error) {
+    throw new Error(
+      await extractFunctionError(error, 'Could not start Paystack checkout.')
+    );
+  }
+
+  if (!data?.authorization_url) {
+    throw new Error(
+      (data as { error?: string } | null)?.error ??
+        'Could not get a payment link.'
+    );
+  }
+
+  return data as StartCheckoutResult;
 }

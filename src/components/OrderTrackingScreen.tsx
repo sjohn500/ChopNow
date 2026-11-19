@@ -5,100 +5,209 @@ import {
   Clock,
   LocateFixed,
   MapPin,
-  MessageCircle,
-  Phone,
-  Send,
-  Star,
+  RefreshCw,
   Store,
-  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { formatNaira } from '../data/deliveryData';
-import { ActiveOrder, ScreenId, TrackingStage } from '../types/delivery';
+import {
+  ActiveOrder,
+  DbOrderStatus,
+  ScreenId,
+  TrackingStage,
+} from '../types/delivery';
 import { MobileBottomNav } from './MobileBottomNav';
 import { PlateImage } from './PlateImage';
-import { Badge, BadgeVariant, Button, Card, EmptyState, Input } from './ui';
+import { Badge, BadgeVariant, Button, Card, EmptyState } from './ui';
 
 interface OrderTrackingScreenProps {
-  order: ActiveOrder;
+  order?: ActiveOrder;
   orders: ActiveOrder[];
-  onChangeStage: (stage: TrackingStage) => void;
+  currentUserId: string | null;
+  onAdvanceStatus: (orderId: string, nextStatus: DbOrderStatus) => Promise<void>;
+  onRefreshOrders: () => Promise<void>;
   onSelectOrder?: (order: ActiveOrder) => void;
   onNavigateScreen: (screen: ScreenId) => void;
   onBackHome: () => void;
   layoutMode?: 'frame' | 'responsive';
 }
 
-const STAGES: {
-  key: TrackingStage;
+const PROGRESS_STEPS: {
+  key: DbOrderStatus;
   label: string;
-  badgeVariant: BadgeVariant;
-  description: string;
 }[] = [
-  {
-    key: 'pending',
-    label: 'Pending',
-    badgeVariant: 'pending',
-    description: 'Waiting for kitchen confirmation',
-  },
-  {
-    key: 'accepted',
-    label: 'Accepted',
-    badgeVariant: 'accepted',
-    description: 'Kitchen accepted & preparing your food',
-  },
-  {
-    key: 'delivered',
-    label: 'Delivered',
-    badgeVariant: 'delivered',
-    description: 'Order delivered to your landmark',
-  },
+  { key: 'paid', label: 'Paid' },
+  { key: 'accepted', label: 'Accepted' },
+  { key: 'preparing', label: 'Preparing' },
+  { key: 'delivered', label: 'Delivered' },
 ];
 
 type MapFocus = 'route' | 'kitchen' | 'dropoff';
 
-export function getOrderBadge(stage: TrackingStage): {
+export function getOrderBadge(
+  status: TrackingStage | DbOrderStatus
+): {
   label: string;
   variant: BadgeVariant;
 } {
-  if (stage === 'pending') return { label: 'Pending', variant: 'pending' };
-  if (stage === 'accepted') return { label: 'Accepted', variant: 'accepted' };
-  return { label: 'Delivered', variant: 'delivered' };
+  switch (status) {
+    case 'pending_payment':
+      return { label: 'Confirming Payment', variant: 'pending' };
+    case 'paid':
+    case 'pending':
+      return { label: 'Paid · Waiting', variant: 'pending' };
+    case 'accepted':
+      return { label: 'Accepted', variant: 'accepted' };
+    case 'preparing':
+      return { label: 'Preparing', variant: 'accepted' };
+    case 'delivered':
+      return { label: 'Delivered', variant: 'delivered' };
+    case 'completed':
+      return { label: 'Completed', variant: 'success' };
+    case 'cancelled':
+      return { label: 'Cancelled', variant: 'error' };
+    case 'refunded':
+      return { label: 'Refunded', variant: 'error' };
+  }
+}
+
+function stepIndexForStatus(status: DbOrderStatus): number {
+  switch (status) {
+    case 'paid':
+      return 0;
+    case 'accepted':
+      return 1;
+    case 'preparing':
+      return 2;
+    case 'delivered':
+    case 'completed':
+      return 3;
+    default:
+      return -1;
+  }
 }
 
 export function OrderTrackingScreen({
   order,
   orders,
-  onChangeStage,
+  currentUserId,
+  onAdvanceStatus,
+  onRefreshOrders,
   onSelectOrder,
   onNavigateScreen,
   onBackHome,
   layoutMode = 'frame',
 }: OrderTrackingScreenProps) {
   const [mapFocus, setMapFocus] = useState<MapFocus>('route');
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      sender: 'rider',
-      text: `How far! I don pick your food from ${order.restaurantName}. I dey come ${order.destination}.`,
-      time: '1:14 PM',
-    },
-  ]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const isResponsive = layoutMode === 'responsive';
-  const stageIndex = Math.max(
-    0,
-    STAGES.findIndex((s) => s.key === order.stage)
-  );
-  const currentBadge = getOrderBadge(order.stage);
+
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefreshOrders();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function handleNextStatus(orderId: string, nextStatus: DbOrderStatus) {
+    if (updatingStatus) return;
+    setActionError('');
+    setUpdatingStatus(true);
+    try {
+      await onAdvanceStatus(orderId, nextStatus);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not update order status.'
+      );
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  if (!order) {
+    return (
+      <div className="relative flex h-full flex-col bg-bg">
+        <div
+          className={`no-scrollbar flex-1 overflow-y-auto ${
+            isResponsive
+              ? 'mx-auto w-full max-w-4xl px-4 pt-5 pb-24 md:px-6 md:pt-8 md:pb-12'
+              : 'px-4 pt-12 pb-24'
+          }`}
+        >
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onBackHome}
+                aria-label="Back to home feed"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-soft"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <div>
+                <h1 className="font-heading text-xl font-bold text-text-primary md:text-2xl">
+                  My Orders
+                </h1>
+                <p className="text-xs text-text-secondary">
+                  Live order status updates automatically
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              aria-label="Refresh orders"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-soft"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? 'animate-spin text-primary' : ''}`}
+              />
+            </button>
+          </div>
+
+          <EmptyState
+            emoji="🛍️"
+            title="No orders placed yet"
+            description="Explore fresh local plates on ChopBellyFull and pay securely with Paystack."
+            actionLabel="Browse Food"
+            onAction={onBackHome}
+          />
+        </div>
+
+        <MobileBottomNav
+          activeNav="orders"
+          onSelect={(nav) => {
+            if (nav === 'home' || nav === 'search') onNavigateScreen('home');
+            if (nav === 'post') onNavigateScreen('post');
+            if (nav === 'orders') onNavigateScreen('orders');
+            if (nav === 'profile') onNavigateScreen('profile');
+          }}
+          orderCount={orders.length}
+          className={`absolute right-0 bottom-0 left-0 ${
+            isResponsive ? 'md:hidden' : ''
+          }`}
+        />
+      </div>
+    );
+  }
+
+  const dbStatus: DbOrderStatus = order.dbStatus ?? 'paid';
+  const stepIndex = stepIndexForStatus(dbStatus);
+  const currentBadge = getOrderBadge(dbStatus);
+  const isSeller = Boolean(currentUserId && order.sellerId === currentUserId);
+  const isBuyer = Boolean(currentUserId && order.buyerId === currentUserId);
 
   const riderCoords =
-    order.stage === 'pending'
+    dbStatus === 'pending_payment' || dbStatus === 'paid'
       ? { x: 82, y: 175 }
-      : order.stage === 'accepted'
+      : dbStatus === 'accepted' || dbStatus === 'preparing'
         ? { x: 185, y: 130 }
         : { x: 294, y: 86 };
 
@@ -109,14 +218,15 @@ export function OrderTrackingScreen({
         ? 'scale-125 origin-top-right'
         : 'scale-100 origin-center';
 
-  function handleSendChat(e: FormEvent) {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      { sender: 'buyer', text: chatInput.trim(), time: 'Just now' },
-    ]);
-    setChatInput('');
+  let nextAction: { label: string; status: DbOrderStatus } | null = null;
+  if (isSeller) {
+    if (dbStatus === 'paid') nextAction = { label: 'Accept Order', status: 'accepted' };
+    else if (dbStatus === 'accepted')
+      nextAction = { label: 'Start Preparing', status: 'preparing' };
+    else if (dbStatus === 'preparing')
+      nextAction = { label: 'Mark as Delivered', status: 'delivered' };
+  } else if (isBuyer && dbStatus === 'delivered') {
+    nextAction = { label: 'Confirm Order Completed', status: 'completed' };
   }
 
   return (
@@ -147,18 +257,43 @@ export function OrderTrackingScreen({
                 My Orders
               </h1>
               <p className="text-xs text-text-secondary">
-                Order summary, live kitchen route, and status badges
+                Live order tracking · updates automatically
               </p>
             </div>
           </div>
 
-          <Button type="button" variant="secondary" size="sm" onClick={onBackHome}>
-            Order Another Plate
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              aria-label="Refresh orders"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-soft"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? 'animate-spin text-primary' : ''}`}
+              />
+            </button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onBackHome}
+            >
+              Order Another Plate
+            </Button>
+          </div>
         </div>
 
-        <div className={isResponsive ? 'grid grid-cols-1 gap-6 lg:grid-cols-12' : 'space-y-5'}>
-          <div className={isResponsive ? 'space-y-5 lg:col-span-6' : 'space-y-4'}>
+        <div
+          className={
+            isResponsive ? 'grid grid-cols-1 gap-6 lg:grid-cols-12' : 'space-y-5'
+          }
+        >
+          <div
+            className={
+              isResponsive ? 'space-y-5 lg:col-span-6' : 'space-y-4'
+            }
+          >
             <Card padding="md">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 gap-3.5">
@@ -180,6 +315,7 @@ export function OrderTrackingScreen({
                       <Badge variant={currentBadge.variant}>
                         {currentBadge.label}
                       </Badge>
+                      {isSeller && <Badge variant="peach">Incoming Order</Badge>}
                     </div>
                     <h2 className="font-heading mt-1 truncate text-base font-bold text-text-primary">
                       {order.restaurantName}
@@ -199,25 +335,25 @@ export function OrderTrackingScreen({
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="text-xs font-semibold text-text-secondary">
-                      Estimated Arrival
+                      Order Status
                     </p>
                     <p className="font-heading tabular-nums-clean text-xl font-bold text-text-primary">
-                      {order.stage === 'delivered' ? 'Delivered' : order.etaMinutes}
+                      {order.etaMinutes}
                     </p>
                   </div>
 
                   <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-primary">
                     <AnimatePresence mode="wait">
                       <motion.div
-                        key={order.stage}
+                        key={dbStatus}
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
                         transition={{ duration: 0.18 }}
                       >
-                        {order.stage === 'pending' ? (
+                        {dbStatus === 'pending_payment' || dbStatus === 'paid' ? (
                           <Clock className="h-5 w-5" />
-                        ) : order.stage === 'accepted' ? (
+                        ) : dbStatus === 'accepted' || dbStatus === 'preparing' ? (
                           <Bike className="h-5 w-5" />
                         ) : (
                           <Check className="h-5 w-5 text-success" />
@@ -227,38 +363,61 @@ export function OrderTrackingScreen({
                   </span>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {STAGES.map((step, idx) => {
-                    const reached = idx <= stageIndex;
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {PROGRESS_STEPS.map((step, idx) => {
+                    const reached = stepIndex >= idx;
                     const activeColor =
-                      order.stage === 'delivered'
+                      dbStatus === 'completed' || dbStatus === 'delivered'
                         ? 'bg-success'
-                        : order.stage === 'accepted'
-                          ? 'bg-primary'
-                          : 'bg-accent';
+                        : 'bg-primary';
                     return (
-                      <button
-                        key={step.key}
-                        type="button"
-                        onClick={() => onChangeStage(step.key)}
-                        className="cursor-pointer text-left focus:outline-none"
-                      >
+                      <div key={step.key}>
                         <div
                           className={`h-2 w-full rounded-full transition-colors duration-200 ${
                             reached ? activeColor : 'bg-border-soft'
                           }`}
                         />
                         <span
-                          className={`mt-1.5 block text-xs font-semibold ${
-                            reached ? 'text-text-primary' : 'text-text-secondary/65'
+                          className={`mt-1.5 block text-[11px] font-semibold ${
+                            reached
+                              ? 'text-text-primary'
+                              : 'text-text-secondary/65'
                           }`}
                         >
                           {step.label}
                         </span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
+
+                {dbStatus === 'pending_payment' && (
+                  <p className="mt-3 text-xs text-text-secondary">
+                    Waiting for Paystack to confirm your payment. This screen
+                    updates automatically once confirmed.
+                  </p>
+                )}
+
+                {actionError && (
+                  <p className="mt-3 rounded-[10px] bg-error/10 px-3 py-2 text-xs font-semibold text-error">
+                    {actionError}
+                  </p>
+                )}
+
+                {nextAction && order.id && (
+                  <Button
+                    type="button"
+                    fullWidth
+                    size="md"
+                    className="mt-3"
+                    disabled={updatingStatus}
+                    onClick={() =>
+                      handleNextStatus(order.id!, nextAction!.status)
+                    }
+                  >
+                    {updatingStatus ? 'Updating...' : nextAction.label}
+                  </Button>
+                )}
               </div>
 
               <div className="mt-4 space-y-2 border-t border-border-soft pt-3 text-xs">
@@ -271,110 +430,59 @@ export function OrderTrackingScreen({
                 <p className="flex items-center gap-2 text-text-secondary">
                   <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">
-                    Drop-off: {order.destination} ({order.distanceKm} km)
+                    Drop-off: {order.destination}
+                    {order.buyerName ? ` (${order.buyerName})` : ''}
                   </span>
                 </p>
               </div>
             </Card>
 
-            <Card padding="sm" className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-primary-soft">
-                  <PlateImage
-                    src={order.rider.avatarUrl}
-                    alt={order.rider.name}
-                    className="h-full w-full"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-heading truncate text-sm font-bold text-text-primary">
-                      {order.rider.name}
-                    </p>
-                    <span className="tabular-nums-clean inline-flex items-center gap-0.5 text-xs font-bold text-text-primary">
-                      <Star className="h-3.5 w-3.5 fill-accent text-accent" />
-                      {order.rider.rating}
-                    </span>
-                  </div>
-                  <p className="truncate text-xs text-text-secondary">
-                    {order.rider.vehicle}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  aria-label="Message rider"
-                  onClick={() => setIsChatOpen(true)}
-                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary-soft text-primary transition-transform hover:-translate-y-0.5 active:scale-95"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Call rider"
-                  onClick={() => setIsCallActive(true)}
-                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-soft transition-colors hover:bg-primary-dark active:scale-95"
-                >
-                  <Phone className="h-4 w-4" />
-                </button>
-              </div>
-            </Card>
-
-            {orders.length > 0 ? (
-              <div className="space-y-2.5">
-                <h3 className="font-heading text-sm font-bold text-text-primary">
-                  Recent Order History ({orders.length})
-                </h3>
-                {orders.map((item) => {
-                  const badge = getOrderBadge(item.stage);
-                  const isCurrent = item.code === order.code;
-                  return (
-                    <Card
-                      key={item.code}
-                      padding="sm"
-                      className={`cursor-pointer transition-all duration-150 ${
-                        isCurrent ? 'ring-2 ring-primary/40' : ''
-                      }`}
-                      onClick={() => onSelectOrder?.(item)}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="tabular-nums-clean text-xs font-bold text-text-secondary">
-                              #{item.code}
-                            </span>
-                            <Badge variant={badge.variant}>{badge.label}</Badge>
-                          </div>
-                          <p className="mt-1 truncate text-sm font-semibold text-text-primary">
-                            {item.restaurantName}
-                          </p>
-                          <p className="truncate text-xs text-text-secondary">
-                            {item.itemsSummary}
-                          </p>
+            <div className="space-y-2.5">
+              <h3 className="font-heading text-sm font-bold text-text-primary">
+                Order History ({orders.length})
+              </h3>
+              {orders.map((item) => {
+                const badge = getOrderBadge(item.dbStatus ?? item.stage);
+                const isCurrent = item.id === order.id;
+                return (
+                  <Card
+                    key={item.id ?? item.code}
+                    padding="sm"
+                    className={`cursor-pointer transition-all duration-150 ${
+                      isCurrent ? 'ring-2 ring-primary/40' : ''
+                    }`}
+                    onClick={() => onSelectOrder?.(item)}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="tabular-nums-clean text-xs font-bold text-text-secondary">
+                            #{item.code}
+                          </span>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
                         </div>
-                        <span className="tabular-nums-clean font-heading shrink-0 text-sm font-bold text-primary">
-                          {formatNaira(item.totalAmount)}
-                        </span>
+                        <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+                          {item.restaurantName}
+                        </p>
+                        <p className="truncate text-xs text-text-secondary">
+                          {item.itemsSummary}
+                        </p>
                       </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState
-                emoji="🛍️"
-                title="No orders placed yet"
-                description="Explore fresh local plates on ChopBellyFull and place your first order."
-                actionLabel="Browse Food"
-                onAction={onBackHome}
-              />
-            )}
+                      <span className="tabular-nums-clean font-heading shrink-0 text-sm font-bold text-primary">
+                        {formatNaira(item.totalAmount)}
+                      </span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
 
           <div className={isResponsive ? 'lg:col-span-6' : ''}>
-            <Card padding="none" className="relative h-[320px] overflow-hidden md:h-[460px]">
+            <Card
+              padding="none"
+              className="relative h-[320px] overflow-hidden md:h-[460px]"
+            >
               <svg
                 viewBox="0 0 375 290"
                 preserveAspectRatio="xMidYMid slice"
@@ -542,109 +650,6 @@ export function OrderTrackingScreen({
           isResponsive ? 'md:hidden' : ''
         }`}
       />
-
-      {isCallActive && (
-        <div
-          className={`${
-            isResponsive ? 'fixed' : 'absolute'
-          } inset-0 z-50 flex flex-col items-center justify-between bg-text-primary/95 px-6 py-16 text-white backdrop-blur-md`}
-        >
-          <div className="text-center">
-            <Badge variant="mango">Connecting Masked Call</Badge>
-            <div className="mx-auto mt-6 h-24 w-24 overflow-hidden rounded-full ring-4 ring-primary/40">
-              <PlateImage
-                src={order.rider.avatarUrl}
-                alt={order.rider.name}
-                className="h-full w-full"
-              />
-            </div>
-            <h3 className="font-heading mt-4 text-xl font-bold">
-              {order.rider.name}
-            </h3>
-            <p className="tabular-nums-clean mt-1 text-sm text-primary-soft">
-              {order.rider.phone}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsCallActive(false)}
-            className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-error text-white shadow-lg"
-            aria-label="End call"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-      )}
-
-      {isChatOpen && (
-        <div
-          className={
-            isResponsive
-              ? 'fixed inset-0 z-50 flex items-end justify-center bg-text-primary/45 backdrop-blur-[2px] md:items-center md:p-4'
-              : 'absolute inset-0 z-40 flex items-end bg-text-primary/45 backdrop-blur-[2px]'
-          }
-        >
-          <div
-            className={
-              isResponsive
-                ? 'flex h-[68dvh] w-full flex-col rounded-t-[20px] bg-surface p-4 pb-6 shadow-2xl md:h-[500px] md:max-w-md md:rounded-[16px]'
-                : 'flex h-[68%] w-full flex-col rounded-t-[20px] bg-surface p-4 pb-6'
-            }
-          >
-            <div className="flex items-center justify-between border-b border-border-soft pb-3">
-              <div>
-                <h3 className="font-heading text-sm font-bold text-text-primary">
-                  Chat with {order.rider.name}
-                </h3>
-                <p className="text-xs font-semibold text-primary">
-                  Order #{order.code}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Close chat"
-                onClick={() => setIsChatOpen(false)}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-bg text-text-primary"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-2.5 overflow-y-auto py-3">
-              {messages.map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`max-w-[82%] rounded-[14px] px-3.5 py-2.5 text-xs ${
-                    m.sender === 'buyer'
-                      ? 'ml-auto bg-primary text-white'
-                      : 'bg-bg text-text-primary'
-                  }`}
-                >
-                  <p>{m.text}</p>
-                </div>
-              ))}
-            </div>
-
-            <form onSubmit={handleSendChat} className="flex items-center gap-2 pt-2">
-              <Input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Message rider (e.g. Call at the gate)..."
-              />
-              <Button
-                type="submit"
-                size="md"
-                aria-label="Send message"
-                className="px-3.5"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

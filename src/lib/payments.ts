@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { apiRequest, getAuthToken } from './api';
 
 export type VerifySellerBankInput = {
   bank_code: string;
@@ -40,115 +40,47 @@ export type StartCheckoutResult = {
   total_kobo: number;
 };
 
-async function extractFunctionError(error: unknown, fallback: string): Promise<string> {
-  if (error && typeof error === 'object' && 'context' in error) {
-    const res = (error as { context?: Response }).context;
-    if (res && typeof res.json === 'function') {
-      try {
-        const body = (await res.json()) as { error?: string };
-        if (body?.error) return body.error;
-      } catch {
-        // Ignore JSON parse errors and fall back
-      }
-    }
-  }
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
-}
-
 export async function getMyPayoutAccount(): Promise<PayoutAccountSummary | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await supabase
-    .from('seller_payout')
-    .select('account_name, bank_code, account_number')
-    .eq('seller_id', user.id)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data;
+  if (!getAuthToken()) return null;
+  const res = await apiRequest<{ payout: PayoutAccountSummary | null }>(
+    '/api/seller/payout'
+  );
+  return res.payout;
 }
 
 export async function verifySellerBank(
   input: VerifySellerBankInput
 ): Promise<{ account_name: string }> {
-  const { data, error } = await supabase.functions.invoke('create-subaccount', {
-    body: {
-      verify_only: true,
-      bank_code: input.bank_code,
-      account_number: input.account_number,
-    },
-  });
-
-  if (error) {
-    throw new Error(
-      await extractFunctionError(error, 'Could not verify that bank account.')
-    );
-  }
-
-  if (!data?.account_name) {
-    throw new Error(
-      (data as { error?: string } | null)?.error ??
-        'Could not verify that bank account.'
-    );
-  }
-
-  return { account_name: data.account_name as string };
+  const res = await apiRequest<{ ok: boolean; account_name: string }>(
+    '/api/payments/verify-bank',
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }
+  );
+  return { account_name: res.account_name };
 }
 
 export async function saveSellerBank(
   input: SaveSellerBankInput
 ): Promise<SaveSellerBankResult> {
-  const { data, error } = await supabase.functions.invoke('create-subaccount', {
-    body: input,
+  return apiRequest<SaveSellerBankResult>('/api/payments/save-bank', {
+    method: 'POST',
+    body: JSON.stringify(input),
   });
-
-  if (error) {
-    throw new Error(
-      await extractFunctionError(error, 'Could not save your bank details.')
-    );
-  }
-
-  if (!data?.account_name) {
-    throw new Error(
-      (data as { error?: string } | null)?.error ??
-        'Could not verify your bank account.'
-    );
-  }
-
-  return data as SaveSellerBankResult;
 }
 
 export async function startCheckout(
   items: CheckoutItemInput[],
   buyer: CheckoutBuyerInput
 ): Promise<StartCheckoutResult> {
-  const { data, error } = await supabase.functions.invoke('initialize-payment', {
-    body: {
+  return apiRequest<StartCheckoutResult>('/api/payments/initialize', {
+    method: 'POST',
+    body: JSON.stringify({
       items,
       buyer_name: buyer.name,
       buyer_phone: buyer.phone,
       delivery_address: buyer.deliveryAddress,
-    },
+    }),
   });
-
-  if (error) {
-    throw new Error(
-      await extractFunctionError(error, 'Could not start Paystack checkout.')
-    );
-  }
-
-  if (!data?.authorization_url) {
-    throw new Error(
-      (data as { error?: string } | null)?.error ??
-        'Could not get a payment link.'
-    );
-  }
-
-  return data as StartCheckoutResult;
 }

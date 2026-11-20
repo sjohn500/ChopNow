@@ -7,3 +7,7 @@ coverage/
 .env*
 !.env.example
 .env
+__pycache__/
+*.pyc
+backend/data/
+backend/uploads/

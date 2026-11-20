@@ -1,22 +1,18 @@
-import { supabase } from './supabase';
+import { apiRequest } from './api';
 
 /**
- * Uploads a food photo and returns its public URL.
- * `photo` is the data URL that compressFoodPhoto() produces.
- * Built-in sample photos (paths starting with "/") are returned unchanged.
+ * Uploads a compressed data-URL food photo to the Python backend and returns
+ * its `/uploads/...` URL. Built-in `/assets/...` sample paths pass through unchanged.
  */
-export async function uploadFoodPhoto(userId: string, photo: string): Promise<string> {
+export async function uploadFoodPhoto(
+  _userId: string,
+  photo: string
+): Promise<string> {
   if (photo.startsWith('/')) return photo;
 
-  const blob = await (await fetch(photo)).blob();
-  const type = blob.type || 'image/jpeg';
-  const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
-  const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from('food-images')
-    .upload(path, blob, { contentType: type });
-  if (error) throw new Error('Could not upload the photo. Please try again.');
-
-  return supabase.storage.from('food-images').getPublicUrl(path).data.publicUrl;
+  const res = await apiRequest<{ url: string }>('/api/storage/upload', {
+    method: 'POST',
+    body: JSON.stringify({ photo }),
+  });
+  return res.url;
 }

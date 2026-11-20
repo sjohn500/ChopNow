@@ -5,7 +5,7 @@ import type {
   MenuItem,
   Restaurant,
 } from '../types/delivery';
-import { supabase } from './supabase';
+import { apiRequest, getAuthToken } from './api';
 
 type CategoryKey = Exclude<FoodCategoryKey, 'all'>;
 
@@ -29,7 +29,7 @@ const FALLBACK_COVER =
   '/assets/aistudio/pexels-saizstudio-17952748_67761b9b.jpg';
 const DEFAULT_AREA = 'Eti-Osa, Lagos';
 
-type DbFood = {
+export type DbFood = {
   id: string;
   seller_id: string;
   name: string;
@@ -48,6 +48,18 @@ type DbKitchen = {
   category: string | null;
   cover_image_url: string | null;
   delivery_fee_kobo: number | null;
+};
+
+type SessionApiUser = {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string;
+  buyer_area: string;
+  buyer_landmark: string;
+  avatar_url: string | null;
+  role: 'buyer' | 'seller';
+  kitchen: DbKitchen | null;
 };
 
 function isCategoryKey(value: string | null): value is CategoryKey {
@@ -97,65 +109,41 @@ function mapKitchen(k: DbKitchen, foods: DbFood[]): Restaurant {
   };
 }
 
-/** All real kitchens (with their dishes) from the database. */
+/** All kitchens (with their dishes) from the Python SQLite database. */
 export async function fetchRestaurants(): Promise<Restaurant[]> {
-  const [kitchensRes, foodsRes] = await Promise.all([
-    supabase
-      .from('seller_profiles')
-      .select(
-        'id, business_name, area, address, category, cover_image_url, delivery_fee_kobo'
-      ),
-    supabase
-      .from('foods')
-      .select(
-        'id, seller_id, name, description, price_kobo, image_url, is_available, category'
-      ),
-  ]);
-
-  if (kitchensRes.error) throw new Error(kitchensRes.error.message);
-  if (foodsRes.error) throw new Error(foodsRes.error.message);
+  const res = await apiRequest<{ kitchens: DbKitchen[]; foods: DbFood[] }>(
+    '/api/restaurants'
+  );
 
   const foodsBySeller = new Map<string, DbFood[]>();
-  for (const food of (foodsRes.data ?? []) as DbFood[]) {
+  for (const food of res.foods ?? []) {
     const list = foodsBySeller.get(food.seller_id) ?? [];
     list.push(food);
     foodsBySeller.set(food.seller_id, list);
   }
 
-  return ((kitchensRes.data ?? []) as DbKitchen[]).map((k) =>
+  return (res.kitchens ?? []).map((k) =>
     mapKitchen(k, foodsBySeller.get(k.id) ?? [])
   );
 }
 
-/**
- * Builds the app's user from the real Supabase session.
- * Returns null when nobody is signed in.
- * Anyone with a registered kitchen is a seller; everyone else is a buyer.
- */
+/** Builds the app's user from the Python backend session, or returns null. */
 export async function loadSessionUser(base: AuthUser): Promise<AuthUser | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return null;
+  if (!getAuthToken()) return null;
 
-  const uid = session.user.id;
-  const [profileResult, kitchenResult] = await Promise.all([
-    supabase.from('profiles').select('full_name, phone').eq('id', uid).maybeSingle(),
-    supabase.from('seller_profiles').select('id, area, address').eq('id', uid).maybeSingle(),
-  ]);
+  const res = await apiRequest<{ user: SessionApiUser | null }>('/api/auth/session');
+  if (!res.user) return null;
 
-  const profile = profileResult.data;
-  const kitchen = kitchenResult.data;
-
+  const u = res.user;
   return {
     ...base,
-    name:
-      profile?.full_name?.trim() ||
-      session.user.email?.split('@')[0] ||
-      base.name,
-    phone: profile?.phone ?? base.phone,
-    role: kitchen ? 'seller' : 'buyer',
-    buyerArea: kitchen?.area ?? base.buyerArea,
-    sellerRestaurantId: kitchen?.id,
+    name: u.full_name?.trim() || u.email.split('@')[0] || base.name,
+    phone: u.phone || base.phone,
+    email: u.email,
+    avatarUrl: u.avatar_url ?? undefined,
+    role: u.kitchen ? 'seller' : 'buyer',
+    buyerArea: u.kitchen?.area || u.buyer_area || base.buyerArea,
+    buyerLandmark: u.buyer_landmark || u.kitchen?.address || base.buyerLandmark,
+    sellerRestaurantId: u.kitchen?.id,
   };
 }

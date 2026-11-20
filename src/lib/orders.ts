@@ -5,7 +5,7 @@ import type {
   Restaurant,
   TrackingStage,
 } from '../types/delivery';
-import { supabase } from './supabase';
+import { apiRequest, getAuthToken } from './api';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -13,6 +13,13 @@ const UUID_RE =
 export function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
+
+type DbOrderItemRow = {
+  order_id: string;
+  food_id: string | null;
+  name: string;
+  quantity: number;
+};
 
 type DbOrderRow = {
   id: string;
@@ -26,13 +33,8 @@ type DbOrderRow = {
   buyer_name: string | null;
   buyer_phone: string | null;
   payment_reference: string | null;
-};
-
-type DbOrderItemRow = {
-  order_id: string;
-  food_id: string | null;
-  name: string;
-  quantity: number;
+  created_at?: string;
+  items?: DbOrderItemRow[];
 };
 
 function mapDbStatusToStage(status: DbOrderStatus): TrackingStage {
@@ -66,53 +68,18 @@ export async function fetchMyOrders(
   restaurants: Restaurant[],
   buyerLocation: string
 ): Promise<{ orders: ActiveOrder[]; userId: string | null }> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!getAuthToken()) {
     return { orders: [], userId: null };
   }
 
-  const { data, error } = await supabase
-    .from('orders')
-    .select(
-      'id, buyer_id, seller_id, total_kobo, commission_kobo, delivery_fee_kobo, status, delivery_address, buyer_name, buyer_phone, payment_reference'
-    )
-    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as DbOrderRow[];
-  const itemsByOrder = new Map<string, DbOrderItemRow[]>();
-
-  if (rows.length > 0) {
-    try {
-      const { data: itemRows } = await supabase
-        .from('order_items')
-        .select('order_id, food_id, name, quantity')
-        .in(
-          'order_id',
-          rows.map((r) => r.id)
-        );
-
-      for (const item of (itemRows ?? []) as DbOrderItemRow[]) {
-        const list = itemsByOrder.get(item.order_id) ?? [];
-        list.push(item);
-        itemsByOrder.set(item.order_id, list);
-      }
-    } catch {
-      // order_items may not expose client SELECT via RLS; safe fallback below
-    }
-  }
-
+  const res = await apiRequest<{ user_id: string; orders: DbOrderRow[] }>(
+    '/api/orders'
+  );
   const byId = new Map(restaurants.map((r) => [r.id, r]));
 
-  const orders: ActiveOrder[] = rows.map((row) => {
+  const orders: ActiveOrder[] = (res.orders ?? []).map((row) => {
     const kitchen = byId.get(row.seller_id);
-    const items = itemsByOrder.get(row.id) ?? [];
+    const items = row.items ?? [];
     const itemsSummary =
       items.length > 0
         ? items.map((i) => `${i.quantity}x ${i.name}`).join(', ')
@@ -135,6 +102,7 @@ export async function fetchMyOrders(
       buyerName: row.buyer_name ?? undefined,
       buyerPhone: row.buyer_phone ?? undefined,
       paymentReference: row.payment_reference ?? undefined,
+      createdAt: row.created_at,
       code: row.id.slice(0, 8).toUpperCase(),
       restaurantId: row.seller_id,
       restaurantName: kitchen?.name ?? 'ChopBellyFull Kitchen',
@@ -152,39 +120,30 @@ export async function fetchMyOrders(
     };
   });
 
-  return { orders, userId: user.id };
+  return { orders, userId: res.user_id ?? null };
 }
 
 export async function updateOrderStatusInDb(
   orderId: string,
   nextStatus: DbOrderStatus
 ): Promise<void> {
-  const { error } = await supabase
-    .from('orders')
-    .update({ status: nextStatus })
-    .eq('id', orderId);
-
-  if (error) {
-    throw new Error(error.message || 'Could not update order status.');
-  }
+  await apiRequest(`/api/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: nextStatus }),
+  });
 }
 
 export function subscribeToOrderChanges(
-  userId: string,
+  _userId: string,
   onChange: () => void
 ): () => void {
-  const channel = supabase
-    .channel(`orders-live-${userId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'orders' },
-      () => {
-        onChange();
-      }
-    )
-    .subscribe();
+  const intervalId = window.setInterval(() => {
+    if (getAuthToken()) {
+      onChange();
+    }
+  }, 5000);
 
   return () => {
-    supabase.removeChannel(channel);
+    window.clearInterval(intervalId);
   };
 }

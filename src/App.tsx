@@ -428,6 +428,9 @@ export default function App() {
     await updateMyProfileInDb({
       full_name: nextUser.name,
       phone: nextUser.phone,
+      buyer_area: nextUser.buyerArea,
+      buyer_landmark: nextUser.buyerLandmark,
+      avatar_url: nextUser.avatarUrl,
     });
 
     if (kitchenPatch) {

@@ -10,9 +10,13 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FormEvent, useState } from 'react';
-import { saveMyKitchen, signInWithEmail, signUpWithEmail } from '../lib/auth';
+import {
+  getCurrentUserId,
+  saveMyKitchen,
+  signInWithEmail,
+  signUpWithEmail,
+} from '../lib/auth';
 import { loadSessionUser } from '../lib/marketplace';
-import { supabase } from '../lib/supabase';
 import { AuthUser, FoodCategoryKey, UserRole } from '../types/delivery';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
 import { Button, Card, Input, Select } from './ui';
@@ -114,6 +118,9 @@ export function AuthScreen({
           password,
           fullName: name,
           phone,
+          buyerArea: area,
+          buyerLandmark:
+            role === 'buyer' ? landmark.trim() : kitchenAddress.trim(),
         });
 
         if (result.needsEmailConfirmation) {
@@ -125,16 +132,14 @@ export function AuthScreen({
         }
 
         if (role === 'seller') {
-          const {
-            data: { user: authUser },
-          } = await supabase.auth.getUser();
-          if (!authUser) {
+          const authUserId = await getCurrentUserId();
+          if (!authUserId) {
             throw new Error(
               'Account created, but we could not set up your kitchen. Please sign in and try again.'
             );
           }
           try {
-            await saveMyKitchen(authUser.id, {
+            await saveMyKitchen(authUserId, {
               business_name: kitchenName.trim(),
               area,
               address: kitchenAddress.trim(),

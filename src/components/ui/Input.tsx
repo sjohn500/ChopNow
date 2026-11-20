@@ -10,12 +10,17 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   icon?: ReactNode;
   error?: string;
+  surface?: 'sand' | 'cream';
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, icon, error, id, className = '', ...props },
+  { label, icon, error, id, surface, type, className = '', ...props },
   ref
 ) {
+  const resolvedSurface = surface ?? (type === 'search' ? 'sand' : 'cream');
+  const bgClass =
+    resolvedSurface === 'sand' ? 'bg-primary-soft' : 'bg-bg';
+
   return (
     <div className="w-full">
       {label && (
@@ -28,14 +33,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       )}
       <div className="relative">
         {icon && (
-          <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-text-secondary">
+          <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-text-primary">
             {icon}
           </span>
         )}
         <input
           ref={ref}
           id={id}
-          className={`min-h-[46px] w-full rounded-[14px] border bg-surface text-sm text-text-primary transition-all duration-150 placeholder:text-text-secondary/75 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${
+          type={type}
+          className={`min-h-[46px] w-full rounded-[14px] border text-sm text-text-primary transition-all duration-150 placeholder:text-text-secondary/80 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${bgClass} ${
             icon ? 'pr-4 pl-10' : 'px-4'
           } ${
             error
@@ -76,8 +82,10 @@ export function Textarea({
       )}
       <textarea
         id={id}
-        className={`w-full rounded-[14px] border bg-surface p-3.5 text-sm text-text-primary transition-all duration-150 placeholder:text-text-secondary/75 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${
-          error ? 'border-error focus:border-error focus:ring-error/20' : 'border-border-soft'
+        className={`w-full rounded-[14px] border bg-bg p-3.5 text-sm text-text-primary transition-all duration-150 placeholder:text-text-secondary/80 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${
+          error
+            ? 'border-error focus:border-error focus:ring-error/20'
+            : 'border-border-soft'
         } ${className}`}
         {...props}
       />
@@ -112,7 +120,7 @@ export function Select({
       )}
       <select
         id={id}
-        className={`min-h-[46px] w-full rounded-[14px] border border-border-soft bg-surface px-3.5 text-sm font-medium text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${className}`}
+        className={`min-h-[46px] w-full rounded-[14px] border border-border-soft bg-bg px-3.5 text-sm font-medium text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${className}`}
         {...props}
       >
         {children}

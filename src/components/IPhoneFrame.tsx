@@ -35,8 +35,8 @@ export function IPhoneFrame({
       <div
         className={`relative w-full max-w-[375px] rounded-[46px] bg-text-primary p-[11px] transition-shadow duration-200 ${
           isHighlighted
-            ? 'shadow-[0_24px_60px_-14px_rgba(255,111,97,0.28)]'
-            : 'shadow-[0_24px_60px_-16px_rgba(43,43,43,0.20)]'
+            ? 'shadow-[0_24px_60px_-14px_rgba(244,180,0,0.30)]'
+            : 'shadow-[0_24px_60px_-16px_rgba(44,34,30,0.22)]'
         }`}
       >
         <div className="relative flex h-[760px] w-full flex-col overflow-hidden rounded-[36px] bg-bg">

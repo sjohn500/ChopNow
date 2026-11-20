@@ -4,6 +4,10 @@ import {
   getNigeriaLocationCoords,
   NIGERIA_STATES,
 } from './nigeriaLocations';
+import plateEgusiImg from '../assets/images/plate_egusi_pounded_yam_1795003764805.jpg';
+import localPepperSoupImg from '../assets/images/local_pepper_soup_1795006181565.jpg';
+import localBoliFishImg from '../assets/images/local_boli_fish_1795006182721.jpg';
+import riderAvatarImg from '../assets/images/rider_portrait_avatar_1795004110734.jpg';
 
 export const DELIVERY_LOCATIONS = [
   'Eti-Osa, Lagos',
@@ -118,7 +122,7 @@ export const RESTAURANTS: Restaurant[] = [
           'Hand-ground melon soup simmered with stockfish, tender beef cuts, ugwu leaves, and smooth pounded yam.',
         price: 4200,
         category: 'Swallows',
-        imageUrl: '/src/assets/images/plate_egusi_pounded_yam_1795003764805.jpg',
+        imageUrl: plateEgusiImg,
       },
       {
         id: 'mp-suya-plate',
@@ -190,7 +194,7 @@ export const RESTAURANTS: Restaurant[] = [
           'Rich melon seed soup loaded with dry fish, ponmo, and beef beside fluffy pounded yam.',
         price: 4400,
         category: 'Swallows',
-        imageUrl: '/src/assets/images/plate_egusi_pounded_yam_1795003764805.jpg',
+        imageUrl: plateEgusiImg,
       },
       {
         id: 'ib-fried-rice',
@@ -210,7 +214,7 @@ export const RESTAURANTS: Restaurant[] = [
           'Steaming aromatic pepper soup simmered with scent leaves and calabash nutmeg.',
         price: 3600,
         category: 'Proteins',
-        imageUrl: '/src/assets/images/local_pepper_soup_1795006181565.jpg',
+        imageUrl: localPepperSoupImg,
       },
       {
         id: 'ib-puff',
@@ -272,7 +276,7 @@ export const RESTAURANTS: Restaurant[] = [
           'Charcoal-roasted sweet plantains served with whole grilled tilapia coated in spicy red pepper sauce.',
         price: 4500,
         category: 'Proteins',
-        imageUrl: '/src/assets/images/local_boli_fish_1795006182721.jpg',
+        imageUrl: localBoliFishImg,
       },
       {
         id: 'an-zobo',
@@ -439,7 +443,7 @@ export const INITIAL_ACTIVE_ORDER: ActiveOrder = {
     phone: '0803 771 4290',
     vehicle: 'Honda Dispatch · Plate KJA-482',
     rating: 4.9,
-    avatarUrl: '/src/assets/images/rider_portrait_avatar_1795004110734.jpg',
+    avatarUrl: riderAvatarImg,
   },
 };
 

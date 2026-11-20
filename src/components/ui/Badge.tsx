@@ -17,13 +17,13 @@ interface BadgeProps {
 }
 
 const VARIANT_MAP: Record<BadgeVariant, string> = {
-  peach: 'bg-primary-soft text-text-primary',
-  mango: 'bg-accent text-text-primary',
-  coral: 'bg-primary text-white',
+  peach: 'bg-primary-soft text-text-primary border border-border-soft',
+  mango: 'bg-primary text-text-primary',
+  coral: 'bg-primary text-text-primary',
   success: 'bg-success text-white',
   error: 'bg-error text-white',
-  pending: 'bg-accent text-text-primary',
-  accepted: 'bg-primary text-white',
+  pending: 'bg-primary-soft text-text-primary border border-primary',
+  accepted: 'bg-primary text-text-primary',
   delivered: 'bg-success text-white',
 };
 

@@ -17,7 +17,7 @@ export function PlateImage({ src, alt, className = '' }: PlateImageProps) {
         role="img"
         aria-label={alt}
       >
-        <UtensilsCrossed className="mb-2 h-7 w-7 text-primary" />
+        <UtensilsCrossed className="mb-2 h-7 w-7 text-text-primary" />
         <span className="line-clamp-2 text-xs font-medium text-text-primary">
           {alt}
         </span>

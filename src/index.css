@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  /* Chopbelly Color System */
-  --color-primary: #FF6F61;
-  --color-primary-dark: #E8504A;
-  --color-primary-soft: #FFE3DA;
-  --color-accent: #FFB703;
+  /* ChopBellyFull Color System */
+  --color-primary: #F4B400;
+  --color-primary-dark: #D99E00;
+  --color-primary-soft: #F3EAD8;
+  --color-accent: #F4B400;
   --color-success: #2E9E6B;
   --color-error: #D62839;
-  --color-bg: #FFF8F3;
+  --color-bg: #FFFDF7;
   --color-surface: #FFFFFF;
-  --color-text-primary: #2B2B2B;
-  --color-text-secondary: #6B6B6B;
-  --color-border: #F1E4DC;
+  --color-text-primary: #2C221E;
+  --color-text-secondary: #5E4B42;
+  --color-border: #E6D9C2;
 
   /* Typography */
   --font-heading: 'Poppins', system-ui, -apple-system, sans-serif;
@@ -22,29 +22,29 @@
   --radius-card: 16px;
   --radius-control: 14px;
   --radius-pill: 999px;
-  --shadow-soft: 0 4px 14px rgba(255, 111, 97, 0.15);
-  --shadow-card: 0 4px 16px rgba(43, 43, 43, 0.05), 0 4px 14px rgba(255, 111, 97, 0.10);
-  --shadow-nav: 0 -4px 20px rgba(43, 43, 43, 0.06);
+  --shadow-soft: 0 4px 14px rgba(44, 34, 30, 0.08);
+  --shadow-card: 0 4px 16px rgba(44, 34, 30, 0.06);
+  --shadow-nav: 0 -4px 20px rgba(44, 34, 30, 0.06);
 }
 
 @theme {
-  --color-primary: #FF6F61;
-  --color-primary-dark: #E8504A;
-  --color-primary-soft: #FFE3DA;
-  --color-accent: #FFB703;
+  --color-primary: #F4B400;
+  --color-primary-dark: #D99E00;
+  --color-primary-soft: #F3EAD8;
+  --color-accent: #F4B400;
   --color-success: #2E9E6B;
   --color-error: #D62839;
-  --color-bg: #FFF8F3;
+  --color-bg: #FFFDF7;
   --color-surface: #FFFFFF;
-  --color-text-primary: #2B2B2B;
-  --color-text-secondary: #6B6B6B;
-  --color-border-soft: #F1E4DC;
+  --color-text-primary: #2C221E;
+  --color-text-secondary: #5E4B42;
+  --color-border-soft: #E6D9C2;
 
   --font-heading: 'Poppins', system-ui, -apple-system, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 
-  --shadow-soft: 0 4px 14px rgba(255, 111, 97, 0.15);
-  --shadow-card: 0 4px 16px rgba(43, 43, 43, 0.05), 0 4px 14px rgba(255, 111, 97, 0.10);
+  --shadow-soft: 0 4px 14px rgba(44, 34, 30, 0.08);
+  --shadow-card: 0 4px 16px rgba(44, 34, 30, 0.06);
 }
 
 @layer base {

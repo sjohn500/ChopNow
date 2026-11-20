@@ -155,8 +155,8 @@ export function SwipeableScreenDeck({
                 onClick={() => onChangeScreen(s.id)}
                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${
                   isCurrent
-                    ? 'bg-primary text-white'
-                    : 'bg-primary-soft/60 text-text-secondary hover:text-text-primary'
+                    ? 'bg-primary text-text-primary'
+                    : 'bg-primary-soft text-text-secondary hover:text-text-primary'
                 }`}
               >
                 {s.label}

@@ -59,7 +59,7 @@ export function NigeriaLocationPicker({
             type="button"
             onClick={onUseGps}
             disabled={isLocating}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-dark hover:underline disabled:opacity-60"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-text-primary transition-colors hover:bg-primary"
           >
             <Compass className="h-3.5 w-3.5" />
             {isLocating ? 'Locating...' : 'Use GPS'}
@@ -75,7 +75,7 @@ export function NigeriaLocationPicker({
           onChange={(e) => setSearch(e.target.value)}
           placeholder={`Search any State or ${TOTAL_NIGERIA_LGAS} LGAs...`}
           aria-label="Search Nigerian state or local government"
-          className={`w-full rounded-[14px] border border-border-soft bg-surface pr-3 pl-9 text-xs text-text-primary transition-all duration-150 placeholder:text-text-secondary/75 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${
+          className={`w-full rounded-[14px] border border-border-soft bg-primary-soft pr-3 pl-9 text-xs text-text-primary transition-all duration-150 placeholder:text-text-secondary/80 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${
             compact ? 'min-h-[40px]' : 'min-h-[44px]'
           }`}
         />
@@ -101,7 +101,7 @@ export function NigeriaLocationPicker({
                   }}
                   className={`flex min-h-[38px] w-full cursor-pointer items-center justify-between rounded-[12px] px-2.5 text-left text-xs font-semibold transition-colors ${
                     isSelected
-                      ? 'bg-primary text-white'
+                      ? 'bg-primary text-text-primary'
                       : 'text-text-primary hover:bg-primary-soft'
                   }`}
                 >
@@ -111,7 +111,7 @@ export function NigeriaLocationPicker({
                   </span>
                   <span
                     className={`shrink-0 text-[11px] ${
-                      isSelected ? 'text-white' : 'text-text-secondary'
+                      isSelected ? 'text-text-primary' : 'text-text-secondary'
                     }`}
                   >
                     {m.state}
@@ -138,7 +138,7 @@ export function NigeriaLocationPicker({
                   formatNigeriaLocation(nextState.capitalLga, nextState.state)
                 );
               }}
-              className={`w-full rounded-[14px] border border-border-soft bg-surface px-2.5 text-xs font-semibold text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${
+              className={`w-full rounded-[14px] border border-border-soft bg-bg px-2.5 text-xs font-semibold text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${
                 compact ? 'min-h-[42px]' : 'min-h-[46px]'
               }`}
             >
@@ -162,7 +162,7 @@ export function NigeriaLocationPicker({
                   formatNigeriaLocation(e.target.value, currentStateObj.state)
                 )
               }
-              className={`w-full rounded-[14px] border border-border-soft bg-surface px-2.5 text-xs font-semibold text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/25 focus:outline-none ${
+              className={`w-full rounded-[14px] border border-border-soft bg-bg px-2.5 text-xs font-semibold text-text-primary transition-all duration-150 focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none ${
                 compact ? 'min-h-[42px]' : 'min-h-[46px]'
               }`}
             >

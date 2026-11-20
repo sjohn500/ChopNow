@@ -688,7 +688,7 @@ export default function App() {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="flex min-h-dvh bg-bg text-text-primary"
           >
-            <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border-soft bg-surface lg:block">
+            <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border-soft bg-bg lg:block">
               <SidebarContent
                 user={user}
                 location={location}
@@ -718,7 +718,7 @@ export default function App() {
                     type="button"
                     onClick={() => setIsDrawerOpen(true)}
                     aria-label="Open navigation sidebar"
-                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface text-text-primary shadow-xs transition-colors hover:bg-primary-soft"
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary-soft text-text-primary shadow-xs transition-colors hover:bg-primary"
                   >
                     <Menu className="h-5 w-5" />
                   </button>
@@ -728,13 +728,13 @@ export default function App() {
                     onClick={() => setShowLanding(true)}
                     className="font-heading cursor-pointer text-lg font-bold tracking-tight text-text-primary"
                   >
-                    Chop<span className="text-primary">BellyFull</span>
+                    Chop<span className="underline decoration-primary decoration-3 underline-offset-4">BellyFull</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setActiveScreen('post')}
-                    className="min-h-[38px] shrink-0 cursor-pointer rounded-full bg-primary px-4 text-xs font-semibold whitespace-nowrap text-white shadow-xs transition-colors duration-200 hover:bg-primary-dark"
+                    className="min-h-[38px] shrink-0 cursor-pointer rounded-full bg-primary px-4 text-xs font-semibold whitespace-nowrap text-text-primary shadow-xs transition-colors duration-200 hover:bg-primary-dark"
                   >
                     + Post Food
                   </button>
@@ -757,8 +757,8 @@ export default function App() {
                         onClick={() => setActiveScreen(tab.id)}
                         className={`min-h-[36px] cursor-pointer rounded-full px-4 text-xs font-semibold whitespace-nowrap transition-colors duration-150 ${
                           activeScreen === tab.id
-                            ? 'bg-primary text-white'
-                            : 'bg-surface text-text-secondary hover:text-text-primary'
+                            ? 'bg-primary text-text-primary shadow-xs'
+                            : 'bg-primary-soft text-text-primary hover:bg-primary/35'
                         }`}
                       >
                         {tab.label}
@@ -933,7 +933,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-4 bottom-20 left-4 z-50 mx-auto flex max-w-md items-center gap-2.5 rounded-[14px] bg-text-primary px-4 py-3 text-sm font-medium text-surface shadow-xl md:right-6 md:bottom-6 md:left-auto"
+            className="fixed right-4 bottom-20 left-4 z-50 mx-auto flex max-w-md items-center gap-2.5 rounded-[14px] bg-text-primary px-4 py-3 text-sm font-medium text-bg shadow-xl md:right-6 md:bottom-6 md:left-auto"
           >
             <CheckCircle2 className="h-4 w-4 shrink-0 text-accent" />
             <span>{toast}</span>

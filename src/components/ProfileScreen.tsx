@@ -22,6 +22,7 @@ import {
   ScreenId,
 } from '../types/delivery';
 import { compressFoodPhoto, isValidNigerianPhone } from '../utils/image';
+import { BlurredFoodBackdrop } from './BlurredFoodBackdrop';
 import { MobileBottomNav } from './MobileBottomNav';
 import { NigeriaLocationPicker } from './NigeriaLocationPicker';
 import { getOrderBadge } from './OrderTrackingScreen';
@@ -311,9 +312,11 @@ export function ProfileScreen({
   }
 
   return (
-    <div className="relative flex h-full flex-col bg-bg">
+    <div className="relative flex h-full flex-col overflow-hidden bg-bg">
+      <BlurredFoodBackdrop intensity="subtle" />
+
       <div
-        className={`no-scrollbar flex-1 overflow-y-auto ${
+        className={`no-scrollbar relative z-10 flex-1 overflow-y-auto ${
           isResponsive
             ? 'px-4 pt-5 pb-24 md:px-6 md:pt-8 md:pb-12'
             : `px-4 pb-24 ${overlayInset ? 'pt-12' : 'pt-4'}`
@@ -349,7 +352,7 @@ export function ProfileScreen({
                     disabled={isProcessingAvatar}
                     aria-label="Upload profile photo"
                     onClick={() => avatarInputRef.current?.click()}
-                    className="absolute -right-1 -bottom-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-soft transition-colors hover:bg-primary-dark"
+                    className="absolute -right-1 -bottom-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-text-primary shadow-soft transition-colors hover:bg-primary-dark"
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -360,7 +363,7 @@ export function ProfileScreen({
                     <h1 className="font-heading truncate text-xl font-bold text-text-primary">
                       {user.name}
                     </h1>
-                    <Badge variant="peach">
+                    <Badge variant="mango">
                       {user.role === 'seller' ? 'Seller' : 'Buyer'}
                     </Badge>
                   </div>
@@ -368,8 +371,8 @@ export function ProfileScreen({
                     {user.phone}
                     {user.email ? ` · ${user.email}` : ''}
                   </p>
-                  <p className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-primary">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  <p className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-text-primary">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="truncate">
                       {myKitchen
                         ? `${myKitchen.address} · ${myKitchen.area}`
@@ -418,8 +421,8 @@ export function ProfileScreen({
                   onClick={() => setSection(tab.id)}
                   className={`min-h-[40px] shrink-0 cursor-pointer rounded-full px-5 text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
                     isSelected
-                      ? 'bg-primary text-white shadow-soft'
-                      : 'border border-border-soft bg-surface text-text-secondary hover:bg-primary-soft/50 hover:text-text-primary'
+                      ? 'bg-primary text-text-primary shadow-soft'
+                      : 'border border-border-soft bg-primary-soft text-text-primary hover:bg-primary/30'
                   }`}
                 >
                   {tab.label}
@@ -537,7 +540,7 @@ export function ProfileScreen({
                               {post.name}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
-                              <span className="tabular-nums-clean text-xs font-bold text-primary">
+                              <span className="tabular-nums-clean text-xs font-bold text-text-primary">
                                 {formatNaira(post.price)}
                               </span>
                               <Badge variant={isAvailable ? 'success' : 'error'}>
@@ -642,10 +645,10 @@ export function ProfileScreen({
                           </div>
 
                           <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
-                            <span className="tabular-nums-clean font-heading text-base font-bold text-primary">
+                            <span className="tabular-nums-clean font-heading text-base font-bold text-text-primary">
                               {formatNaira(order.totalAmount)}
                             </span>
-                            <span className="text-xs font-semibold text-primary">
+                            <span className="text-xs font-semibold text-text-primary underline decoration-primary decoration-2 underline-offset-2">
                               Track order →
                             </span>
                           </div>

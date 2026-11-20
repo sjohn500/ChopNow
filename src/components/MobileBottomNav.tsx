@@ -45,7 +45,7 @@ export function MobileBottomNav({
   return (
     <nav
       aria-label="Mobile bottom navigation"
-      className={`floating-bar-shadow z-30 border-t border-border-soft bg-surface/95 backdrop-blur-md ${className}`}
+      className={`floating-bar-shadow z-30 border-t border-border-soft bg-bg/95 backdrop-blur-md ${className}`}
     >
       <div className="mx-auto grid h-16 max-w-lg grid-cols-5 items-center px-1">
         {ITEMS.map((item) => {
@@ -58,27 +58,31 @@ export function MobileBottomNav({
               onClick={() => onSelect(item.id)}
               className={`relative flex min-h-[48px] cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] px-1 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-primary ${
                 isActive
-                  ? 'text-primary'
+                  ? 'text-text-primary'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               {isActive && (
-                <span className="absolute top-1 h-1 w-5 rounded-full bg-primary" />
+                <span className="absolute top-1 h-1 w-6 rounded-full bg-primary" />
               )}
-              <div className="relative">
+              <div
+                className={`relative flex h-7 w-10 items-center justify-center rounded-full transition-colors ${
+                  isActive ? 'bg-primary text-text-primary' : ''
+                }`}
+              >
                 <Icon
-                  className="h-5 w-5 transition-transform duration-200"
+                  className="h-4.5 w-4.5 transition-transform duration-200"
                   strokeWidth={isActive ? 2.4 : 1.9}
                 />
                 {item.id === 'orders' && orderCount > 0 && (
-                  <span className="tabular-nums-clean absolute -top-1.5 -right-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+                  <span className="tabular-nums-clean absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-text-primary px-1 text-[10px] font-bold text-bg">
                     {orderCount}
                   </span>
                 )}
               </div>
               <span
                 className={`text-[11px] whitespace-nowrap ${
-                  isActive ? 'font-semibold text-primary' : 'font-medium'
+                  isActive ? 'font-bold text-text-primary' : 'font-medium'
                 }`}
               >
                 {item.label}

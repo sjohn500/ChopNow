@@ -26,7 +26,24 @@ class Settings:
     debug_errors: bool
 
 
+def _load_dotenv(env_path: Path) -> None:
+    """Read key=value pairs from .env if present (without overwriting real env vars)."""
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 def load_settings() -> Settings:
+    _load_dotenv(PROJECT_ROOT / ".env")
+
     data_dir = BASE_DIR / "data"
     uploads_dir = BASE_DIR / "uploads"
     data_dir.mkdir(parents=True, exist_ok=True)

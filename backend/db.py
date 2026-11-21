@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS seller_payout (
     account_number TEXT NOT NULL,
     account_name TEXT NOT NULL,
     paystack_subaccount_code TEXT NOT NULL,
+    transfer_recipient_code TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL
 );
 
@@ -133,17 +134,51 @@ CREATE TABLE IF NOT EXISTS payments (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS payout_ledger (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    seller_id TEXT NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE,
+    transaction_reference TEXT NOT NULL UNIQUE,
+    payout_reference TEXT NOT NULL UNIQUE,
+    gross_amount_kobo INTEGER NOT NULL CHECK (gross_amount_kobo > 0),
+    app_commission_kobo INTEGER NOT NULL CHECK (app_commission_kobo >= 0),
+    transfer_fee_kobo INTEGER NOT NULL DEFAULT 0 CHECK (transfer_fee_kobo >= 0),
+    seller_payout_kobo INTEGER NOT NULL CHECK (seller_payout_kobo > 0),
+    recipient_code TEXT NOT NULL DEFAULT '',
+    gateway_transfer_code TEXT NOT NULL DEFAULT '',
+    payout_status TEXT NOT NULL DEFAULT 'pending' CHECK (payout_status IN ('pending', 'success', 'failed')),
+    failure_reason TEXT,
+    gateway_response_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_foods_seller_id ON foods(seller_id);
 CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON orders(seller_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_payout_ledger_seller_id ON payout_ledger(seller_id);
+CREATE INDEX IF NOT EXISTS idx_payout_ledger_order_id ON payout_ledger(order_id);
 """
+
+
+def _ensure_migrations(conn: sqlite3.Connection) -> None:
+    """Apply safe additive column migrations for existing SQLite databases."""
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(seller_payout)").fetchall()
+    }
+    if "transfer_recipient_code" not in columns:
+        conn.execute(
+            "ALTER TABLE seller_payout ADD COLUMN transfer_recipient_code TEXT NOT NULL DEFAULT ''"
+        )
 
 
 def init_db() -> None:
     """Create all tables and populate initial neighborhood kitchens if empty."""
     with get_db() as conn:
         conn.executescript(SCHEMA_SQL)
+        _ensure_migrations(conn)
         existing = conn.execute("SELECT COUNT(*) AS count FROM seller_profiles").fetchone()
         if existing and existing["count"] == 0:
             _seed_starter_kitchens(conn)

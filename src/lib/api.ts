@@ -1,14 +1,21 @@
 const TOKEN_STORAGE_KEY = 'chopbellyfull_session_token_v1';
 
+// In-memory fallback in case iframe/browser privacy settings restrict localStorage
+let memoryToken: string | null = null;
+
 export function getAuthToken(): string | null {
+  if (memoryToken) return memoryToken;
   try {
-    return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    const stored = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (stored) memoryToken = stored;
+    return stored;
   } catch {
-    return null;
+    return memoryToken;
   }
 }
 
 export function setAuthToken(token: string | null): void {
+  memoryToken = token || null;
   try {
     if (token) {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
@@ -16,7 +23,7 @@ export function setAuthToken(token: string | null): void {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
-    // Ignore storage quota errors
+    // Ignore storage quota / iframe partitioning errors; memoryToken still works
   }
 }
 
@@ -47,12 +54,19 @@ export async function apiRequest<T>(
     headers,
   });
 
+  const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
   let parsed: unknown = {};
+
   if (text) {
     try {
       parsed = JSON.parse(text);
     } catch {
+      if (contentType.includes('text/html') || text.trimStart().startsWith('<')) {
+        throw new Error(
+          `Backend API unreachable at ${path} (received HTML instead of JSON). Make sure the Python backend is running.`
+        );
+      }
       parsed = { error: text };
     }
   }
@@ -60,7 +74,6 @@ export async function apiRequest<T>(
   if (!res.ok) {
     const errBody = (parsed ?? {}) as ApiErrorBody;
     if (res.status === 401 && errBody.code === 'unauthorized') {
-      // Token expired or invalid on server; clear stale local token if present
       if (token) setAuthToken(null);
     }
     if (errBody.where || errBody.request_id) {

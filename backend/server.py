@@ -237,6 +237,11 @@ class ChopBellyRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(status_out, payload)
                 return
 
+            if method == "GET" and path == "/api/seller/ledger":
+                status_out, payload = routes.handle_seller_ledger(headers)
+                self._send_json(status_out, payload)
+                return
+
             if method == "POST" and path == "/api/payments/verify-bank":
                 status_out, payload = routes.handle_verify_bank(
                     headers, self._read_json_body()

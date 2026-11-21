@@ -16,6 +16,8 @@ from typing import Any
 from urllib.parse import parse_qs
 import uuid
 
+from .commission import calculate_split
+from . import config
 from .config import settings
 from .db import get_db, utc_now_iso
 from .errors import (
@@ -220,7 +222,9 @@ def handle_signin(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         if not row or not verify_password(password, row["password_hash"]):
-            raise UnauthorizedError("Invalid email or password.")
+            raise UnauthorizedError(
+                "Invalid email or password. If you haven't registered on the Python backend yet, click 'Create an account'."
+            )
 
         token = _create_session_for_user(conn, row["id"])
         session_user = _serialize_session_user(conn, dict(row))
@@ -630,6 +634,11 @@ def handle_save_bank(
         raise BadRequestError("Account number must be 10 digits.")
 
     account_name = paystack.resolve_bank_account(account_number, bank_code)
+    recipient_code = paystack.create_transfer_recipient(
+        name=account_name,
+        account_number=account_number,
+        bank_code=bank_code,
+    )
 
     with get_db() as conn:
         existing_kitchen = conn.execute(
@@ -669,21 +678,25 @@ def handle_save_bank(
                 business_name=business_name,
                 bank_code=bank_code,
                 account_number=account_number,
-                commission_percent=settings.commission_percent,
+                commission_percent=config.settings.commission_percent,
             )
 
         conn.execute(
             """
-            INSERT INTO seller_payout (seller_id, bank_code, account_number, account_name, paystack_subaccount_code, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO seller_payout (
+                seller_id, bank_code, account_number, account_name,
+                paystack_subaccount_code, transfer_recipient_code, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(seller_id) DO UPDATE SET
                 bank_code = excluded.bank_code,
                 account_number = excluded.account_number,
                 account_name = excluded.account_name,
                 paystack_subaccount_code = excluded.paystack_subaccount_code,
+                transfer_recipient_code = excluded.transfer_recipient_code,
                 updated_at = excluded.updated_at
             """,
-            (uid, bank_code, account_number, account_name, subaccount_code, now),
+            (uid, bank_code, account_number, account_name, subaccount_code, recipient_code, now),
         )
 
     return 200, {
@@ -691,6 +704,7 @@ def handle_save_bank(
         "account_name": account_name,
         "business_name": business_name,
         "subaccount_code": subaccount_code,
+        "transfer_recipient_code": recipient_code,
     }
 
 
@@ -772,8 +786,13 @@ def handle_initialize_payment(
             )
 
         delivery_fee_kobo = int(kitchen["delivery_fee_kobo"] or 0)
-        commission_kobo = round(subtotal_kobo * (settings.commission_percent / 100.0))
         total_kobo = subtotal_kobo + delivery_fee_kobo
+        split = calculate_split(
+            total_amount=total_kobo,
+            app_percentage=config.settings.commission_percent,
+            transfer_fee=config.settings.paystack_transfer_fee_kobo,
+        )
+        commission_kobo = split.app_commission_kobo
 
         order_id = str(uuid.uuid4())
         reference = f"CHOP_{uuid.uuid4().hex[:14].upper()}"
@@ -821,13 +840,7 @@ def handle_initialize_payment(
             (reference, order_id, total_kobo, now, now),
         )
 
-        payout = conn.execute(
-            "SELECT paystack_subaccount_code FROM seller_payout WHERE seller_id = ?",
-            (seller_id,),
-        ).fetchone()
-        subaccount_code = payout["paystack_subaccount_code"] if payout else None
-
-    callback_origin = settings.app_url
+    callback_origin = config.settings.app_url
     for key, val in headers.items():
         if key.lower() == "origin" and val:
             callback_origin = val.rstrip("/")
@@ -839,7 +852,6 @@ def handle_initialize_payment(
         reference=reference,
         callback_url=f"{callback_origin}/?order={order_id}",
         order_id=order_id,
-        subaccount_code=subaccount_code,
         commission_kobo=commission_kobo,
     )
 
@@ -848,6 +860,9 @@ def handle_initialize_payment(
         "reference": reference,
         "order_id": order_id,
         "total_kobo": total_kobo,
+        "commission_kobo": commission_kobo,
+        "transfer_fee_kobo": split.transfer_fee_kobo,
+        "seller_payout_kobo": split.seller_payout_kobo,
     }
 
 
@@ -931,8 +946,244 @@ def handle_sandbox_checkout_page(query_string: str) -> tuple[int, str]:
     return 200, html
 
 
+def _settle_payment_and_disburse(
+    *,
+    reference: str,
+    paid_amount_kobo: int,
+    currency: str = "NGN",
+    raw_event: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Verify payment, apply idempotency guard, calculate split, log ledger, and disburse payout.
+
+    Runs in three isolated phases so no SQLite write lock is held while calling
+    Paystack's external Transfers API over HTTPS:
+    1. Phase A (DB transaction): Verify reference & amount, lock idempotency via
+       unique `payout_ledger.transaction_reference`, mark payment/order paid, and
+       insert a `'pending'` ledger row.
+    2. Phase B (External API): Create/reuse Paystack transfer recipient for the
+       seller's bank account and initiate automated bank disbursement with a
+       deterministic `payout_reference`.
+    3. Phase C (DB transaction): Finalize ledger status (`'success'` or `'failed'`)
+       and save gateway transfer code or error details for auditing.
+    """
+    now = utc_now_iso()
+    raw_event_json = json.dumps(raw_event) if raw_event is not None else None
+    payout_reference = f"payout_{reference.lower()}"
+
+    # --- Phase A: Idempotency check + atomic claim inside SQLite transaction ---
+    with get_db() as conn:
+        payment = conn.execute(
+            "SELECT reference, order_id, amount_kobo, status FROM payments WHERE reference = ?",
+            (reference,),
+        ).fetchone()
+        if not payment:
+            return {"status": "ignored", "reason": "unknown reference"}
+
+        # Idempotency guard: if we already logged this transaction in payout_ledger,
+        # never trigger a duplicate commission calculation or bank payout.
+        existing_ledger = conn.execute(
+            """
+            SELECT id, payout_reference, payout_status, seller_payout_kobo, app_commission_kobo
+            FROM payout_ledger
+            WHERE transaction_reference = ?
+            """,
+            (reference,),
+        ).fetchone()
+        if existing_ledger:
+            return {
+                "status": "duplicate",
+                "idempotent": True,
+                "ledger": dict(existing_ledger),
+            }
+
+        order = conn.execute(
+            """
+            SELECT id, seller_id, total_kobo, status
+            FROM orders
+            WHERE id = ?
+            """,
+            (payment["order_id"],),
+        ).fetchone()
+        if not order:
+            return {"status": "ignored", "reason": "unknown order"}
+
+        expected_total_kobo = int(order["total_kobo"])
+        if paid_amount_kobo != expected_total_kobo or currency.upper() != "NGN":
+            conn.execute(
+                """
+                UPDATE payments
+                SET status = 'amount_mismatch', raw_json = COALESCE(?, raw_json), updated_at = ?
+                WHERE reference = ?
+                """,
+                (raw_event_json, now, reference),
+            )
+            return {"status": "mismatch", "reason": "amount or currency mismatch"}
+
+        # Calculate platform commission & net seller payout in integer kobo
+        try:
+            split = calculate_split(
+                total_amount=expected_total_kobo,
+                app_percentage=config.settings.commission_percent,
+                transfer_fee=config.settings.paystack_transfer_fee_kobo,
+            )
+        except BadRequestError as exc:
+            conn.execute(
+                """
+                UPDATE payments
+                SET status = 'split_invalid', raw_json = COALESCE(?, raw_json), updated_at = ?
+                WHERE reference = ?
+                """,
+                (raw_event_json, now, reference),
+            )
+            return {"status": "invalid_split", "reason": exc.message}
+
+        seller_bank = conn.execute(
+            """
+            SELECT bank_code, account_number, account_name, transfer_recipient_code
+            FROM seller_payout
+            WHERE seller_id = ?
+            """,
+            (order["seller_id"],),
+        ).fetchone()
+
+        conn.execute(
+            """
+            UPDATE payments
+            SET status = 'success', raw_json = COALESCE(?, raw_json), updated_at = ?
+            WHERE reference = ?
+            """,
+            (raw_event_json, now, reference),
+        )
+        conn.execute(
+            """
+            UPDATE orders
+            SET status = CASE WHEN status = 'pending_payment' THEN 'paid' ELSE status END,
+                commission_kobo = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (split.app_commission_kobo, now, order["id"]),
+        )
+
+        ledger_id = str(uuid.uuid4())
+        recipient_code = seller_bank["transfer_recipient_code"] if seller_bank else ""
+        conn.execute(
+            """
+            INSERT INTO payout_ledger (
+                id, order_id, seller_id, transaction_reference, payout_reference,
+                gross_amount_kobo, app_commission_kobo, transfer_fee_kobo,
+                seller_payout_kobo, recipient_code, payout_status, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            """,
+            (
+                ledger_id,
+                order["id"],
+                order["seller_id"],
+                reference,
+                payout_reference,
+                split.total_amount_kobo,
+                split.app_commission_kobo,
+                split.transfer_fee_kobo,
+                split.seller_payout_kobo,
+                recipient_code,
+                now,
+                now,
+            ),
+        )
+
+    # --- Phase B: Call Paystack Transfers API outside SQLite write lock ---
+    payout_status = "failed"
+    gateway_transfer_code = ""
+    failure_reason: str | None = None
+    gateway_response: dict[str, Any] | None = None
+
+    if not seller_bank:
+        failure_reason = "Seller has not registered a payout bank account yet."
+    else:
+        try:
+            # Ensure a real transfer recipient exists when switching from sandbox/seed to live keys
+            needs_live_recipient = (
+                not paystack.is_sandbox_mode()
+                and (not recipient_code or recipient_code.startswith("RCP_sandbox_"))
+            )
+            if not recipient_code or needs_live_recipient:
+                recipient_code = paystack.create_transfer_recipient(
+                    name=seller_bank["account_name"],
+                    account_number=seller_bank["account_number"],
+                    bank_code=seller_bank["bank_code"],
+                )
+                with get_db() as conn:
+                    conn.execute(
+                        """
+                        UPDATE seller_payout
+                        SET transfer_recipient_code = ?, updated_at = ?
+                        WHERE seller_id = ?
+                        """,
+                        (recipient_code, utc_now_iso(), order["seller_id"]),
+                    )
+
+            gateway_response = paystack.initiate_transfer(
+                amount_kobo=split.seller_payout_kobo,
+                recipient_code=recipient_code,
+                reference=payout_reference,
+                reason=f"ChopBellyFull seller payout for order {order['id'][:8]}",
+            )
+            transfer_data = gateway_response.get("data") or {}
+            gateway_transfer_code = str(transfer_data.get("transfer_code") or "")
+            gateway_state = str(transfer_data.get("status") or "").lower()
+            payout_status = "pending" if gateway_state == "pending" else "success"
+        except Exception as exc:
+            payout_status = "failed"
+            failure_reason = str(getattr(exc, "message", exc))
+
+    # --- Phase C: Record final transfer outcome in payout_ledger ---
+    finished_at = utc_now_iso()
+    with get_db() as conn:
+        conn.execute(
+            """
+            UPDATE payout_ledger
+            SET recipient_code = ?,
+                gateway_transfer_code = ?,
+                payout_status = ?,
+                failure_reason = ?,
+                gateway_response_json = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                recipient_code,
+                gateway_transfer_code,
+                payout_status,
+                failure_reason,
+                json.dumps(gateway_response) if gateway_response is not None else None,
+                finished_at,
+                ledger_id,
+            ),
+        )
+
+    return {
+        "status": "settled",
+        "idempotent": False,
+        "ledger": {
+            "id": ledger_id,
+            "order_id": order["id"],
+            "transaction_reference": reference,
+            "payout_reference": payout_reference,
+            "gross_amount_kobo": split.total_amount_kobo,
+            "app_commission_kobo": split.app_commission_kobo,
+            "transfer_fee_kobo": split.transfer_fee_kobo,
+            "seller_payout_kobo": split.seller_payout_kobo,
+            "recipient_code": recipient_code,
+            "gateway_transfer_code": gateway_transfer_code,
+            "payout_status": payout_status,
+            "failure_reason": failure_reason,
+        },
+    }
+
+
 def handle_sandbox_complete(raw_form_body: bytes) -> str:
-    """Mark a sandbox payment as `success` and order as `paid`, returning redirect URL."""
+    """Confirm sandbox payment, calculate split, disburse sandbox payout, and redirect."""
     form = parse_qs(raw_form_body.decode("utf-8"))
     reference = (form.get("reference") or [""])[0]
     order_id = (form.get("order_id") or [""])[0]
@@ -940,7 +1191,6 @@ def handle_sandbox_complete(raw_form_body: bytes) -> str:
     if not reference or not order_id:
         raise BadRequestError("Missing payment reference or order id.")
 
-    now = utc_now_iso()
     with get_db() as conn:
         payment = conn.execute(
             "SELECT order_id, amount_kobo FROM payments WHERE reference = ?",
@@ -948,20 +1198,14 @@ def handle_sandbox_complete(raw_form_body: bytes) -> str:
         ).fetchone()
         if not payment or payment["order_id"] != order_id:
             raise NotFoundError("Payment reference not found.")
+        amount_kobo = int(payment["amount_kobo"])
 
-        conn.execute(
-            "UPDATE payments SET status = 'success', updated_at = ? WHERE reference = ?",
-            (now, reference),
-        )
-        conn.execute(
-            """
-            UPDATE orders
-            SET status = 'paid', updated_at = ?
-            WHERE id = ? AND status = 'pending_payment'
-            """,
-            (now, order_id),
-        )
-
+    _settle_payment_and_disburse(
+        reference=reference,
+        paid_amount_kobo=amount_kobo,
+        currency="NGN",
+        raw_event={"event": "charge.success", "mode": "sandbox"},
+    )
     return f"/?order={order_id}"
 
 
@@ -969,61 +1213,94 @@ def handle_paystack_webhook(
     headers: dict[str, str],
     raw_body: bytes,
 ) -> tuple[int, str]:
+    """Receive Paystack webhooks, verify HMAC-SHA512 signature, settle & disburse."""
     signature = ""
     for key, value in headers.items():
         if key.lower() == "x-paystack-signature":
             signature = value
             break
 
-    if not verify_paystack_signature(settings.paystack_secret_key, raw_body, signature):
+    webhook_secret = config.settings.paystack_webhook_secret or config.settings.paystack_secret_key
+    if not verify_paystack_signature(webhook_secret, raw_body, signature):
         return 401, "Invalid signature"
 
-    event = json.loads(raw_body.decode("utf-8"))
-    if event.get("event") != "charge.success":
-        return 200, "ignored"
+    try:
+        event = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return 400, "Invalid JSON"
 
+    event_name = str(event.get("event") or "")
     data = event.get("data") or {}
-    reference = str(data.get("reference") or "")
-    amount = int(data.get("amount") or 0)
-    currency = str(data.get("currency") or "")
-    now = utc_now_iso()
+
+    if event_name == "charge.success":
+        reference = str(data.get("reference") or "")
+        amount = int(data.get("amount") or 0)
+        currency = str(data.get("currency") or "")
+        result = _settle_payment_and_disburse(
+            reference=reference,
+            paid_amount_kobo=amount,
+            currency=currency,
+            raw_event=event,
+        )
+        return 200, result["status"]
+
+    # Sync asynchronous Paystack transfer confirmation webhooks into our audit ledger
+    if event_name in ("transfer.success", "transfer.failed", "transfer.reversed"):
+        payout_reference = str(data.get("reference") or "")
+        if not payout_reference:
+            return 200, "ignored"
+
+        next_status = "success" if event_name == "transfer.success" else "failed"
+        reason = None if next_status == "success" else str(data.get("reason") or event_name)
+        with get_db() as conn:
+            conn.execute(
+                """
+                UPDATE payout_ledger
+                SET payout_status = ?,
+                    failure_reason = ?,
+                    gateway_response_json = ?,
+                    updated_at = ?
+                WHERE payout_reference = ?
+                """,
+                (next_status, reason, json.dumps(event), utc_now_iso(), payout_reference),
+            )
+        return 200, "ok"
+
+    return 200, "ignored"
+
+
+def handle_seller_ledger(headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
+    """Return commission & automated payout ledger records for the signed-in seller."""
+    user = _require_auth_user(headers)
+    uid = user["id"]
 
     with get_db() as conn:
-        payment = conn.execute(
-            "SELECT order_id FROM payments WHERE reference = ?",
-            (reference,),
-        ).fetchone()
-        if not payment:
-            return 200, "unknown reference"
-
-        order = conn.execute(
-            "SELECT id, total_kobo, status FROM orders WHERE id = ?",
-            (payment["order_id"],),
-        ).fetchone()
-        if not order:
-            return 200, "unknown order"
-
-        if amount != int(order["total_kobo"]) or currency != "NGN":
-            conn.execute(
-                "UPDATE payments SET status = 'amount_mismatch', raw_json = ?, updated_at = ? WHERE reference = ?",
-                (json.dumps(event), now, reference),
-            )
-            return 200, "mismatch"
-
-        conn.execute(
-            "UPDATE payments SET status = 'success', raw_json = ?, updated_at = ? WHERE reference = ?",
-            (json.dumps(event), now, reference),
-        )
-        conn.execute(
+        rows = conn.execute(
             """
-            UPDATE orders
-            SET status = 'paid', updated_at = ?
-            WHERE id = ? AND status = 'pending_payment'
+            SELECT id, order_id, seller_id, transaction_reference, payout_reference,
+                   gross_amount_kobo, app_commission_kobo, transfer_fee_kobo,
+                   seller_payout_kobo, recipient_code, gateway_transfer_code,
+                   payout_status, failure_reason, created_at, updated_at
+            FROM payout_ledger
+            WHERE seller_id = ?
+            ORDER BY created_at DESC
             """,
-            (now, order["id"]),
-        )
+            (uid,),
+        ).fetchall()
 
-    return 200, "ok"
+    entries = [dict(row) for row in rows]
+    return 200, {
+        "seller_id": uid,
+        "totals": {
+            "gross_kobo": sum(int(e["gross_amount_kobo"]) for e in entries),
+            "app_commission_kobo": sum(int(e["app_commission_kobo"]) for e in entries),
+            "transfer_fee_kobo": sum(int(e["transfer_fee_kobo"]) for e in entries),
+            "seller_payout_kobo": sum(
+                int(e["seller_payout_kobo"]) for e in entries if e["payout_status"] == "success"
+            ),
+        },
+        "ledger": entries,
+    }
 
 
 def handle_list_orders(headers: dict[str, str]) -> tuple[int, dict[str, Any]]:

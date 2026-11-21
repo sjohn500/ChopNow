@@ -20,7 +20,9 @@ class Settings:
     db_path: Path
     uploads_dir: Path
     paystack_secret_key: str
+    paystack_webhook_secret: str
     commission_percent: float
+    paystack_transfer_fee_kobo: int
     app_url: str
     token_ttl_seconds: int
     debug_errors: bool
@@ -55,19 +57,30 @@ def load_settings() -> Settings:
     except ValueError:
         commission_percent = 10.0
 
+    raw_transfer_fee = os.environ.get("PAYSTACK_TRANSFER_FEE_KOBO", "5000").strip()
+    try:
+        paystack_transfer_fee_kobo = max(0, int(raw_transfer_fee))
+    except ValueError:
+        paystack_transfer_fee_kobo = 5000
+
     raw_port = os.environ.get("PYTHON_BACKEND_PORT", "8765").strip()
     try:
         port = int(raw_port)
     except ValueError:
         port = 8765
 
+    secret_key = os.environ.get("PAYSTACK_SECRET_KEY", "").strip()
+    webhook_secret = os.environ.get("PAYSTACK_WEBHOOK_SECRET", "").strip() or secret_key
+
     return Settings(
         host=os.environ.get("PYTHON_BACKEND_HOST", "127.0.0.1"),
         port=port,
         db_path=Path(os.environ.get("CHOPBELLY_DB_PATH", str(data_dir / "chopbellyfull.db"))),
         uploads_dir=Path(os.environ.get("CHOPBELLY_UPLOADS_DIR", str(uploads_dir))),
-        paystack_secret_key=os.environ.get("PAYSTACK_SECRET_KEY", "").strip(),
+        paystack_secret_key=secret_key,
+        paystack_webhook_secret=webhook_secret,
         commission_percent=commission_percent,
+        paystack_transfer_fee_kobo=paystack_transfer_fee_kobo,
         app_url=os.environ.get("APP_URL", "http://127.0.0.1:3000").rstrip("/"),
         token_ttl_seconds=60 * 60 * 24 * 14,  # 14 days
         debug_errors=os.environ.get("DEBUG_ERRORS", "true").lower() != "false",

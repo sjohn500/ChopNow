@@ -23,6 +23,10 @@ function startPythonBackend(): ChildProcess {
     stdio: 'inherit',
   });
 
+  proc.on('error', (err) => {
+    console.error('[server.ts] Failed to start python3 backend:', err.message);
+  });
+
   proc.on('exit', (code, signal) => {
     if (code !== null && code !== 0) {
       console.error(

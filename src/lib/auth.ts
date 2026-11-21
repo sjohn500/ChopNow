@@ -33,8 +33,12 @@ export async function signUpWithEmail(input: SignUpInput) {
     }),
   });
 
-  if (!res.token) {
-    throw new Error('Server did not return a session token. Please try again.');
+  if (!res || !res.token) {
+    const maybeErr = (res as { error?: string } | undefined)?.error;
+    throw new Error(
+      maybeErr ||
+        'Server did not return a session token. Make sure the latest app is published/running and try again.'
+    );
   }
   setAuthToken(res.token);
   return { needsEmailConfirmation: Boolean(res.needs_email_confirmation) };
@@ -48,8 +52,12 @@ export async function signInWithEmail(email: string, password: string) {
       password,
     }),
   });
-  if (!res.token) {
-    throw new Error('Server did not return a session token. Please try again.');
+  if (!res || !res.token) {
+    const maybeErr = (res as { error?: string } | undefined)?.error;
+    throw new Error(
+      maybeErr ||
+        'Server did not return a session token. Make sure the latest app is published/running and try again.'
+    );
   }
   setAuthToken(res.token);
 }

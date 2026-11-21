@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: chopbellyfull
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COMMISSION_PERCENT
+        value: "10"
+      - key: PAYSTACK_TRANSFER_FEE_KOBO
+        value: "5000"
+      - key: DEBUG_ERRORS
+        value: "true"
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: APP_URL
+        sync: false

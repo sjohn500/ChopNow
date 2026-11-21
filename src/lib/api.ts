@@ -64,7 +64,12 @@ export async function apiRequest<T>(
     } catch {
       if (contentType.includes('text/html') || text.trimStart().startsWith('<')) {
         throw new Error(
-          `Backend API unreachable at ${path} (received HTML instead of JSON). Make sure the Python backend is running.`
+          `Backend API unreachable at ${path} (received HTML instead of JSON). If you are using a Shared link, republish/update the app so the Python backend is live.`
+        );
+      }
+      if (res.ok) {
+        throw new Error(
+          `Unexpected non-JSON response from ${path}: ${text.slice(0, 120)}`
         );
       }
       parsed = { error: text };
